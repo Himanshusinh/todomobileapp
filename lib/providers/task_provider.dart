@@ -1,22 +1,53 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:hive/hive.dart';
+import 'package:todoapp/models/category.dart';
 import 'package:todoapp/models/sub_task.dart';
 import 'package:todoapp/models/task_item.dart';
 import 'package:uuid/uuid.dart';
 
 class TaskProvider extends ChangeNotifier {
   final Box<TaskItem> _taskBox = Hive.box<TaskItem>('tasks');
+  final Box<Category> _categoryBox = Hive.box<Category>('categories');
   final _uuid = const Uuid();
 
+  String? _selectedCategoryId;
+  String? get selectedCategoryId => _selectedCategoryId;
+
+  void selectCategory(String? id) {
+    _selectedCategoryId = id;
+    notifyListeners();
+  }
+
+  List<Category> get categories => _categoryBox.values.toList();
+
   List<TaskItem> get tasks {
-    final list = _taskBox.values.toList();
+    var list = _taskBox.values.toList();
+    if (_selectedCategoryId != null) {
+      list = list.where((t) => t.categoryId == _selectedCategoryId).toList();
+    }
     list.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     return list;
   }
 
+  void addCategory(Category category) {
+    _categoryBox.put(category.id, category);
+    notifyListeners();
+  }
+
+  void deleteCategory(String id) {
+    _categoryBox.delete(id);
+    // Unset categoryId for tasks in this category
+    for (var task in _taskBox.values.where((t) => t.categoryId == id)) {
+      task.categoryId = null;
+      _taskBox.put(task.id, task);
+    }
+    if (_selectedCategoryId == id) _selectedCategoryId = null;
+    notifyListeners();
+  }
+
   void addTask(TaskItem task) {
     if (task.orderIndex == 0 && _taskBox.isNotEmpty) {
-      task.orderIndex = tasks.last.orderIndex + 1;
+      task.orderIndex = tasks.isNotEmpty ? tasks.last.orderIndex + 1 : 0;
     }
     _taskBox.put(task.id, task);
     notifyListeners();
@@ -38,11 +69,11 @@ class TaskProvider extends ChangeNotifier {
   }
 
   void reorderTasks(int oldIndex, int newIndex) {
+    final currentTasks = tasks;
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
-    final item = tasks.removeAt(oldIndex);
-    final currentTasks = tasks;
+    final item = currentTasks.removeAt(oldIndex);
     currentTasks.insert(newIndex, item);
     
     for (int i = 0; i < currentTasks.length; i++) {
@@ -88,8 +119,6 @@ class TaskProvider extends ChangeNotifier {
     }
 
     final originalInterval = completedTask.recurringInterval;
-    
-    // Unset recurring on the old one to prevent duplicates if toggled back and forth
     completedTask.recurringInterval = RecurringInterval.none;
     _taskBox.put(completedTask.id, completedTask);
 
@@ -105,9 +134,11 @@ class TaskProvider extends ChangeNotifier {
       recurringInterval: originalInterval,
       dependencies: completedTask.dependencies,
       tags: completedTask.tags,
-      orderIndex: _taskBox.isNotEmpty ? tasks.last.orderIndex + 1 : 0,
+      orderIndex: _taskBox.isNotEmpty ? _taskBox.values.toList().last.orderIndex + 1 : 0,
+      categoryId: completedTask.categoryId,
     );
     
     _taskBox.put(newTask.id, newTask);
+    notifyListeners();
   }
 }

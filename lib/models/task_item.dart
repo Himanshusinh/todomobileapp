@@ -58,6 +58,9 @@ class TaskItem extends HiveObject {
   @HiveField(11)
   DateTime? dueTime;
 
+  @HiveField(12)
+  String? categoryId;
+
   TaskItem({
     required this.id,
     required this.title,
@@ -71,6 +74,7 @@ class TaskItem extends HiveObject {
     List<String>? tags,
     this.orderIndex = 0,
     this.dueTime,
+    this.categoryId,
   })  : subTasks = subTasks ?? [],
         dependencies = dependencies ?? [],
         tags = tags ?? [];
@@ -89,6 +93,7 @@ class TaskItem extends HiveObject {
       tags: List<String>.from(tags),
       orderIndex: orderIndex,
       dueTime: dueTime,
+      categoryId: categoryId,
     );
   }
 }

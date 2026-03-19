@@ -6,20 +6,23 @@ import 'package:todoapp/models/task_item.dart';
 import 'package:todoapp/providers/task_provider.dart';
 import 'package:todoapp/providers/theme_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:todoapp/models/category.dart';
 import 'package:todoapp/screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  
+
   // Register Adapters
   Hive.registerAdapter(SubTaskAdapter());
   Hive.registerAdapter(TaskItemAdapter());
   Hive.registerAdapter(TaskPriorityAdapter());
   Hive.registerAdapter(RecurringIntervalAdapter());
-  
+  Hive.registerAdapter(CategoryAdapter());
+
   await Hive.openBox<TaskItem>('tasks');
-  
+  await Hive.openBox<Category>('categories');
+
   runApp(
     MultiProvider(
       providers: [
@@ -37,7 +40,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    
+
     return MaterialApp(
       title: 'Luxury Todo',
       debugShowCheckedModeBanner: false,
@@ -51,7 +54,7 @@ class MyApp extends StatelessWidget {
   ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final primaryBlue = Colors.blue.shade600;
-    
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,

@@ -29,13 +29,14 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
       tags: (fields[9] as List?)?.cast<String>(),
       orderIndex: fields[10] as int,
       dueTime: fields[11] as DateTime?,
+      categoryId: fields[12] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, TaskItem obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -59,7 +60,9 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
       ..writeByte(10)
       ..write(obj.orderIndex)
       ..writeByte(11)
-      ..write(obj.dueTime);
+      ..write(obj.dueTime)
+      ..writeByte(12)
+      ..write(obj.categoryId);
   }
 
   @override
