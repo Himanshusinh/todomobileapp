@@ -27,16 +27,22 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
       recurringInterval: fields[7] as RecurringInterval,
       dependencies: (fields[8] as List?)?.cast<String>(),
       tags: (fields[9] as List?)?.cast<String>(),
-      orderIndex: fields[10] as int,
       dueTime: fields[11] as DateTime?,
       categoryId: fields[12] as String?,
-    );
+      startTime: fields[13] as DateTime?,
+      endTime: fields[14] as DateTime?,
+      durationMinutes: fields[15] as int?,
+      estimatedMinutes: fields[16] as int?,
+      actualMinutes: fields[17] as int?,
+    )
+      .._orderIndex = fields[10] as int?
+      .._isFavorited = fields[18] as bool?;
   }
 
   @override
   void write(BinaryWriter writer, TaskItem obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -58,11 +64,23 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
       ..writeByte(9)
       ..write(obj.tags)
       ..writeByte(10)
-      ..write(obj.orderIndex)
+      ..write(obj._orderIndex)
       ..writeByte(11)
       ..write(obj.dueTime)
       ..writeByte(12)
-      ..write(obj.categoryId);
+      ..write(obj.categoryId)
+      ..writeByte(13)
+      ..write(obj.startTime)
+      ..writeByte(14)
+      ..write(obj.endTime)
+      ..writeByte(15)
+      ..write(obj.durationMinutes)
+      ..writeByte(16)
+      ..write(obj.estimatedMinutes)
+      ..writeByte(17)
+      ..write(obj.actualMinutes)
+      ..writeByte(18)
+      ..write(obj._isFavorited);
   }
 
   @override

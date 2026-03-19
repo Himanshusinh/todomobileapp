@@ -53,13 +53,35 @@ class TaskItem extends HiveObject {
   List<String> tags;
 
   @HiveField(10)
-  int orderIndex;
+  int? _orderIndex;
+  int get orderIndex => _orderIndex ?? 0;
+  set orderIndex(int value) => _orderIndex = value;
 
   @HiveField(11)
   DateTime? dueTime;
 
   @HiveField(12)
   String? categoryId;
+
+  @HiveField(13)
+  DateTime? startTime;
+
+  @HiveField(14)
+  DateTime? endTime;
+
+  @HiveField(15)
+  int? durationMinutes;
+
+  @HiveField(16)
+  int? estimatedMinutes;
+
+  @HiveField(17)
+  int? actualMinutes;
+
+  @HiveField(18)
+  bool? _isFavorited;
+  bool get isFavorited => _isFavorited ?? false;
+  set isFavorited(bool value) => _isFavorited = value;
 
   TaskItem({
     required this.id,
@@ -72,10 +94,18 @@ class TaskItem extends HiveObject {
     this.recurringInterval = RecurringInterval.none,
     List<String>? dependencies,
     List<String>? tags,
-    this.orderIndex = 0,
+    int orderIndex = 0,
     this.dueTime,
     this.categoryId,
-  })  : subTasks = subTasks ?? [],
+    this.startTime,
+    this.endTime,
+    this.durationMinutes,
+    this.estimatedMinutes,
+    this.actualMinutes,
+    bool isFavorited = false,
+  })  : _orderIndex = orderIndex,
+        _isFavorited = isFavorited,
+        subTasks = subTasks ?? [],
         dependencies = dependencies ?? [],
         tags = tags ?? [];
 
@@ -94,6 +124,12 @@ class TaskItem extends HiveObject {
       orderIndex: orderIndex,
       dueTime: dueTime,
       categoryId: categoryId,
+      startTime: startTime,
+      endTime: endTime,
+      durationMinutes: durationMinutes,
+      estimatedMinutes: estimatedMinutes,
+      actualMinutes: actualMinutes,
+      isFavorited: isFavorited,
     );
   }
 }

@@ -25,6 +25,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   DateTime? _dueDate;
   DateTime? _dueTime;
   String? _categoryId;
+  DateTime? _startTime;
+  DateTime? _endTime;
+
   final List<SubTask> _subTasks = [];
   final List<String> _tags = [];
   final List<String> _dependencies = [];
@@ -42,6 +45,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     _dueDate = widget.task?.dueDate;
     _dueTime = widget.task?.dueTime;
     _categoryId = widget.task?.categoryId;
+    _startTime = widget.task?.startTime;
+    _endTime = widget.task?.endTime;
+
     if (widget.task != null) {
       _subTasks.addAll(widget.task!.subTasks.map((st) => SubTask(id: st.id, title: st.title, isCompleted: st.isCompleted)));
       _tags.addAll(widget.task!.tags);
@@ -73,6 +79,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         tags: _tags,
         dependencies: _dependencies,
         categoryId: _categoryId,
+        startTime: _startTime,
+        endTime: _endTime,
+        durationMinutes: (_startTime != null && _endTime != null) ? _endTime!.difference(_startTime!).inMinutes : null,
       );
 
       if (widget.task == null) {
@@ -110,6 +119,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               controller: _descriptionController,
               decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
               maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: widget.task?.estimatedMinutes?.toString() ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Estimated Time (minutes)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.timer_outlined),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (val) => setState(() => widget.task?.estimatedMinutes = int.tryParse(val)),
             ),
             const SizedBox(height: 24),
             
@@ -151,16 +171,59 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             ),
             const SizedBox(height: 24),
 
-            const Text('Schedule & Recurring', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Schedule & Time Blocking', style: TextStyle(fontWeight: FontWeight.bold)),
             ListTile(
+              contentPadding: EdgeInsets.zero,
               title: Text(_dueDate == null ? 'Set Due Date' : DateFormat('MMM d, y').format(_dueDate!)),
-              trailing: const Icon(Icons.calendar_today),
+              leading: const Icon(Icons.calendar_today),
               onTap: () async {
                 final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime(2100));
-                if (d != null) setState(() => _dueDate = d);
+                if (d != null) {
+                  setState(() {
+                    _dueDate = d;
+                    // Auto-set start/end time dates if selected
+                    if (_startTime != null) _startTime = DateTime(d.year, d.month, d.day, _startTime!.hour, _startTime!.minute);
+                    if (_endTime != null) _endTime = DateTime(d.year, d.month, d.day, _endTime!.hour, _endTime!.minute);
+                  });
+                }
               },
             ),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(_startTime == null ? 'Start Time' : DateFormat('HH:mm').format(_startTime!)),
+                    leading: const Icon(Icons.access_time),
+                    onTap: () async {
+                      final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                      if (t != null) {
+                        final d = _dueDate ?? DateTime.now();
+                        setState(() => _startTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+                      }
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(_endTime == null ? 'End Time' : DateFormat('HH:mm').format(_endTime!)),
+                    leading: const Icon(Icons.access_time_filled),
+                    onTap: () async {
+                      final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                      if (t != null) {
+                        final d = _dueDate ?? DateTime.now();
+                        setState(() => _endTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+
             DropdownButton<RecurringInterval>(
+              isExpanded: true,
               value: _recurringInterval,
               items: RecurringInterval.values.map((i) => DropdownMenuItem(value: i, child: Text('Repeat: ${i.name}'))).toList(),
               onChanged: (val) => setState(() => _recurringInterval = val!),

@@ -5,6 +5,7 @@ import 'package:todoapp/models/sub_task.dart';
 import 'package:todoapp/models/task_item.dart';
 import 'package:todoapp/providers/task_provider.dart';
 import 'package:todoapp/providers/theme_provider.dart';
+import 'package:todoapp/providers/pomodoro_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:todoapp/models/category.dart';
 import 'package:todoapp/screens/home_screen.dart';
@@ -28,6 +29,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
+        ChangeNotifierProvider(create: (_) => PomodoroProvider()),
       ],
       child: const MyApp(),
     ),
