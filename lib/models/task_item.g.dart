@@ -34,6 +34,8 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
       durationMinutes: fields[15] as int?,
       estimatedMinutes: fields[16] as int?,
       actualMinutes: fields[17] as int?,
+      expenseAmount: fields[19] as double?,
+      noteMarkdown: (fields[20] as String?) ?? '',
     )
       .._orderIndex = fields[10] as int?
       .._isFavorited = fields[18] as bool?;
@@ -42,7 +44,7 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
   @override
   void write(BinaryWriter writer, TaskItem obj) {
     writer
-      ..writeByte(19)
+      ..writeByte(21)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -80,7 +82,11 @@ class TaskItemAdapter extends TypeAdapter<TaskItem> {
       ..writeByte(17)
       ..write(obj.actualMinutes)
       ..writeByte(18)
-      ..write(obj._isFavorited);
+      ..write(obj._isFavorited)
+      ..writeByte(19)
+      ..write(obj.expenseAmount)
+      ..writeByte(20)
+      ..write(obj.noteMarkdown);
   }
 
   @override

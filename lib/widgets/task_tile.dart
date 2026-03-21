@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:todoapp/models/task_item.dart';
 import 'package:todoapp/providers/task_provider.dart';
+import 'package:todoapp/providers/notes_provider.dart';
 import 'package:todoapp/screens/focus_mode_screen.dart';
 
 class TaskTile extends StatelessWidget {
@@ -37,7 +38,11 @@ class TaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    final notes = context.watch<NotesProvider>();
     final theme = Theme.of(context);
+    final expense = task.expenseAmount;
+    final hasNote = task.noteMarkdown.trim().isNotEmpty;
+    final hasAttach = notes.attachmentsForTask(task.id).isNotEmpty;
 
     final blocked =
         task.dependencies.isNotEmpty &&
@@ -51,6 +56,7 @@ class TaskTile extends StatelessWidget {
                   title: '',
                   description: '',
                   priority: TaskPriority.low,
+                  noteMarkdown: '',
                 ),
               );
           if (depTask.id == '') return false;
@@ -258,6 +264,44 @@ class TaskTile extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                      ],
+                    ),
+                  if (expense != null && expense > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.payments_outlined,
+                          size: 12,
+                          color: Colors.green.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          NumberFormat.simpleCurrency(decimalDigits: 2).format(expense),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (hasNote)
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_note, size: 14, color: Colors.deepPurple),
+                        SizedBox(width: 2),
+                        Text('Note', style: TextStyle(fontSize: 10, color: Colors.deepPurple, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  if (hasAttach)
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.attach_file, size: 12, color: Colors.blueGrey),
+                        SizedBox(width: 2),
+                        Text('Files', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
                       ],
                     ),
                 ],

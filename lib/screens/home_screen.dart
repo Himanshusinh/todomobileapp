@@ -7,6 +7,11 @@ import 'package:todoapp/providers/theme_provider.dart';
 import 'package:todoapp/providers/pomodoro_provider.dart';
 import 'package:todoapp/screens/calendar_screen.dart';
 import 'package:todoapp/screens/planning_wizard_screen.dart';
+import 'package:todoapp/screens/finance_screen.dart';
+import 'package:todoapp/screens/health_screen.dart';
+import 'package:todoapp/screens/notes_screen.dart';
+import 'package:todoapp/screens/goals_screen.dart';
+import 'package:todoapp/screens/shopping_screen.dart';
 import 'package:todoapp/screens/settings_screen.dart';
 import 'package:todoapp/screens/task_form_screen.dart';
 import 'package:todoapp/widgets/task_tile.dart';
@@ -21,23 +26,82 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [const _TaskListView(), const CalendarScreen()];
+  final List<Widget> _screens = [
+    const _TaskListView(),
+    const CalendarScreen(),
+    const FinanceScreen(),
+    const HealthScreen(),
+    const NotesScreen(),
+    const GoalsScreen(),
+    const ShoppingScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final surface = theme.colorScheme.surface;
+    // Explicit contrast so labels/icons never disappear on light backgrounds.
+    const selectedBlue = Color(0xFF1565C0);
+    const unselected = Color(0xFF5F6368);
+
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TaskFormScreen()),
+              ),
+              child: const Icon(Icons.add),
+            )
+          : null,
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
+        elevation: 8,
+        backgroundColor: surface,
+        selectedItemColor: selectedBlue,
+        unselectedItemColor: unselected,
+        showUnselectedLabels: true,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle_outline),
+            icon: Icon(Icons.check_circle_outline, color: unselected),
+            activeIcon: Icon(Icons.check_circle, color: selectedBlue),
             label: 'Tasks',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
+            icon: Icon(Icons.calendar_month_outlined, color: unselected),
+            activeIcon: Icon(Icons.calendar_month, color: selectedBlue),
             label: 'Calendar',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet_outlined, color: unselected),
+            activeIcon: Icon(Icons.account_balance_wallet, color: selectedBlue),
+            label: 'Finance',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite_outline, color: unselected),
+            activeIcon: Icon(Icons.favorite, color: selectedBlue),
+            label: 'Health',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.edit_note_outlined, color: unselected),
+            activeIcon: Icon(Icons.edit_note, color: selectedBlue),
+            label: 'Notes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.flag_outlined, color: unselected),
+            activeIcon: Icon(Icons.flag, color: selectedBlue),
+            label: 'Goals',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.shopping_bag_outlined, color: unselected),
+            activeIcon: Icon(Icons.shopping_bag, color: selectedBlue),
+            label: 'Shop',
           ),
         ],
       ),
@@ -73,73 +137,86 @@ class _TaskListViewState extends State<_TaskListView> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final tasks = taskProvider.tasks;
 
-    return Scaffold(
-      appBar: _selectionMode
-          ? AppBar(
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => setState(() {
-                  _selectionMode = false;
-                  _selectedIds.clear();
-                }),
-              ),
-              title: Text('${_selectedIds.length} selected'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.check_circle_outline),
-                  onPressed: () {
-                    taskProvider.completeAll(_selectedIds.toList());
-                    setState(() {
-                      _selectionMode = false;
-                      _selectedIds.clear();
-                    });
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () {
-                    taskProvider.deleteAll(_selectedIds.toList());
-                    setState(() {
-                      _selectionMode = false;
-                      _selectedIds.clear();
-                    });
-                  },
-                ),
-              ],
-            )
-          : AppBar(
-              title: const Text('My Todos'),
-              leading: IconButton(
-                icon: const Icon(Icons.auto_awesome_outlined, color: Colors.blue),
-                tooltip: 'Planning Wizard',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlanningWizardScreen()),
-                ),
-              ),
-              actions: [
-                const _PomodoroStatusWidget(),
-                IconButton(
-                  icon: Icon(
-                    themeProvider.isDarkMode
-                        ? Icons.light_mode
-                        : Icons.dark_mode,
-                  ),
-                  onPressed: () => themeProvider.toggleTheme(),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(),
+    final appBarBg =
+        Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).colorScheme.surface;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: appBarBg,
+          elevation: 0,
+          child: SafeArea(
+            bottom: false,
+            child: _selectionMode
+                ? AppBar(
+                    leading: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setState(() {
+                        _selectionMode = false;
+                        _selectedIds.clear();
+                      }),
                     ),
+                    title: Text('${_selectedIds.length} selected'),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.check_circle_outline),
+                        onPressed: () {
+                          taskProvider.completeAll(_selectedIds.toList());
+                          setState(() {
+                            _selectionMode = false;
+                            _selectedIds.clear();
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () {
+                          taskProvider.deleteAll(_selectedIds.toList());
+                          setState(() {
+                            _selectionMode = false;
+                            _selectedIds.clear();
+                          });
+                        },
+                      ),
+                    ],
+                  )
+                : AppBar(
+                    title: const Text('My Todos'),
+                    leading: IconButton(
+                      icon: const Icon(Icons.auto_awesome_outlined, color: Colors.blue),
+                      tooltip: 'Planning Wizard',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PlanningWizardScreen()),
+                      ),
+                    ),
+                    actions: [
+                      const _PomodoroStatusWidget(),
+                      IconButton(
+                        icon: Icon(
+                          themeProvider.isDarkMode
+                              ? Icons.light_mode
+                              : Icons.dark_mode,
+                        ),
+                        onPressed: () => themeProvider.toggleTheme(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsScreen(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-      body: Column(
-        children: [
+          ),
+        ),
+        Expanded(
+          child: Column(
+            children: [
           // Smart Filters
           Container(
             height: 50,
@@ -240,15 +317,10 @@ class _TaskListViewState extends State<_TaskListView> {
                     },
                   ),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const TaskFormScreen()),
+            ],
+          ),
         ),
-        child: const Icon(Icons.add),
-      ),
+      ],
     );
   }
 

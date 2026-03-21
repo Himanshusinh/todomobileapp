@@ -32,21 +32,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final taskProvider = Provider.of<TaskProvider>(context);
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Calendar'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.today),
-            onPressed: () => setState(() {
-              _focusedDay = DateTime.now();
-              _selectedDay = _focusedDay;
-            }),
+    final appBarBg =
+        theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: appBarBg,
+          elevation: 0,
+          child: SafeArea(
+            bottom: false,
+            child: AppBar(
+              title: const Text('Calendar'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.today),
+                  onPressed: () => setState(() {
+                    _focusedDay = DateTime.now();
+                    _selectedDay = _focusedDay;
+                  }),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
+        ),
+        Expanded(
+          child: Column(
+            children: [
           TableCalendar<TaskItem>(
             firstDay: DateTime.utc(2020, 1, 1),
             lastDay: DateTime.utc(2100, 12, 31),
@@ -88,8 +101,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
           Expanded(
             child: _buildTaskList(taskProvider),
           ),
-        ],
-      ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

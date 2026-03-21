@@ -30,6 +30,9 @@ class TaskProvider extends ChangeNotifier {
 
   List<Category> get categories => _categoryBox.values.toList();
 
+  /// All tasks (ignores category / smart filters) — for finance / exports.
+  List<TaskItem> get allTasks => _taskBox.values.toList();
+
   List<TaskItem> get tasks {
     var list = _taskBox.values.toList();
     
@@ -266,6 +269,8 @@ class TaskProvider extends ChangeNotifier {
       estimatedMinutes: completedTask.estimatedMinutes,
       actualMinutes: 0,
       isFavorited: completedTask.isFavorited,
+      expenseAmount: completedTask.expenseAmount,
+      noteMarkdown: completedTask.noteMarkdown,
     );
     
     _taskBox.put(newTask.id, newTask);

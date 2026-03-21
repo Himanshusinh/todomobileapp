@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Attach photos to your tasks.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Capture photos for task attachments and scan barcodes for shopping and inventory.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record voice notes attached to tasks.</string>
 </dict>
 </plist>

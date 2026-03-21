@@ -83,6 +83,14 @@ class TaskItem extends HiveObject {
   bool get isFavorited => _isFavorited ?? false;
   set isFavorited(bool value) => _isFavorited = value;
 
+  /// Optional expense tied to this task (e.g. grocery run — $45).
+  @HiveField(19)
+  double? expenseAmount;
+
+  /// Markdown note (bold/italic/lists); shown in task detail & notes preview.
+  @HiveField(20)
+  String noteMarkdown;
+
   TaskItem({
     required this.id,
     required this.title,
@@ -103,6 +111,8 @@ class TaskItem extends HiveObject {
     this.estimatedMinutes,
     this.actualMinutes,
     bool isFavorited = false,
+    this.expenseAmount,
+    this.noteMarkdown = '',
   })  : _orderIndex = orderIndex,
         _isFavorited = isFavorited,
         subTasks = subTasks ?? [],
@@ -130,6 +140,8 @@ class TaskItem extends HiveObject {
       estimatedMinutes: estimatedMinutes,
       actualMinutes: actualMinutes,
       isFavorited: isFavorited,
+      expenseAmount: expenseAmount,
+      noteMarkdown: noteMarkdown,
     );
   }
 }
