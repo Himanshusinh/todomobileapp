@@ -8,6 +8,7 @@ import 'package:todoapp/models/shopping_list_item.dart';
 import 'package:todoapp/models/wishlist_item.dart';
 import 'package:todoapp/providers/shopping_provider.dart';
 import 'package:todoapp/screens/barcode_scan_screen.dart';
+import 'package:todoapp/widgets/contrast_choice_chip.dart';
 
 void _disposeControllersAfterDialog(List<TextEditingController> controllers) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -631,19 +632,22 @@ class _ShoppingScreenState extends State<ShoppingScreen>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          FilterChip(
-            label: const Text('All'),
+          ContrastChoiceChip(
+            label: 'All',
             selected: _filterCategoryId == null,
-            onSelected: (_) => setState(() => _filterCategoryId = null),
+            onSelected: (v) {
+              if (v) setState(() => _filterCategoryId = null);
+            },
           ),
           ...p.categories.map(
             (c) => Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: FilterChip(
-                label: Text(c.name),
+              padding: const EdgeInsets.only(left: 8),
+              child: ContrastChoiceChip(
+                label: c.name,
                 selected: _filterCategoryId == c.id,
-                onSelected: (_) =>
-                    setState(() => _filterCategoryId = c.id),
+                onSelected: (v) {
+                  if (v) setState(() => _filterCategoryId = c.id);
+                },
               ),
             ),
           ),
@@ -794,12 +798,13 @@ class _ShoppingScreenState extends State<ShoppingScreen>
                   color: appBarBg,
                   elevation: 0,
                   child: SafeArea(
+                    top: false,
                     bottom: false,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         SizedBox(
-                          height: kToolbarHeight,
+                          height: 48,
                           child: Row(
                             children: [
                               Expanded(
@@ -852,6 +857,7 @@ class _ShoppingScreenState extends State<ShoppingScreen>
               right: 16,
               bottom: 16,
               child: FloatingActionButton(
+                heroTag: 'fab_shopping_add',
                 onPressed: () {
                   if (_tab == 0) {
                     _showAddShoppingDialog(context, p);

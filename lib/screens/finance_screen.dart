@@ -77,8 +77,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 color: appBarBg,
                 elevation: 0,
                 child: SafeArea(
+                  top: false,
                   bottom: false,
                   child: AppBar(
+                    primary: false,
+                    toolbarHeight: 48,
+                    automaticallyImplyLeading: false,
                     title: const Text('Finance & Budget'),
                   ),
                 ),
@@ -244,6 +248,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           right: 16,
           bottom: 16,
           child: FloatingActionButton.extended(
+            heroTag: 'fab_finance_add',
             onPressed: () => _financeFabMenu(context, finance),
             icon: const Icon(Icons.add),
             label: const Text('Add'),

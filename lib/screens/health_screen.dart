@@ -47,8 +47,12 @@ class _HealthScreenState extends State<HealthScreen> {
           color: appBarBg,
           elevation: 0,
           child: SafeArea(
+            top: false,
             bottom: false,
             child: AppBar(
+              primary: false,
+              toolbarHeight: 48,
+              automaticallyImplyLeading: false,
               title: const Text('Health & Habits'),
               actions: [
                 IconButton(
@@ -664,9 +668,24 @@ class _MoodRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const emojis = ['😢', '😕', '😐', '🙂', '😄'];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    const moodIcons = [
+      Icons.sentiment_very_dissatisfied_rounded,
+      Icons.sentiment_dissatisfied_rounded,
+      Icons.sentiment_neutral_rounded,
+      Icons.sentiment_satisfied_rounded,
+      Icons.sentiment_very_satisfied_rounded,
+    ];
+    const moodColors = [
+      Color(0xFFE57373),
+      Color(0xFFFFB74D),
+      Color(0xFF90A4AE),
+      Color(0xFF81C784),
+      Color(0xFF4CAF50),
+    ];
+    return Wrap(
+      alignment: WrapAlignment.spaceEvenly,
+      spacing: 8,
+      runSpacing: 8,
       children: List.generate(5, (i) {
         final sel = current == i;
         return InkWell(
@@ -682,7 +701,11 @@ class _MoodRow extends StatelessWidget {
                 width: 2,
               ),
             ),
-            child: Text(emojis[i], style: const TextStyle(fontSize: 28)),
+            child: Icon(
+              moodIcons[i],
+              size: 30,
+              color: sel ? Theme.of(context).colorScheme.primary : moodColors[i],
+            ),
           ),
         );
       }),

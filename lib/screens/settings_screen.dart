@@ -7,23 +7,48 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Switch between Light and Dark themes'),
-            value: themeProvider.isDarkMode,
-            onChanged: (val) => themeProvider.toggleTheme(),
-            secondary: Icon(themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              'Appearance',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
-          const Divider(),
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              return SwitchListTile(
+                title: const Text('Dark mode'),
+                subtitle: const Text(
+                  'Uses dark colors across the whole app. You can change this anytime.',
+                ),
+                value: themeProvider.isDarkMode,
+                onChanged: (v) => themeProvider.setDarkMode(v),
+                secondary: Icon(
+                  themeProvider.isDarkMode
+                      ? Icons.dark_mode_rounded
+                      : Icons.light_mode_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 32),
           const ListTile(
-            title: Text('App Version'),
+            title: Text('App version'),
             subtitle: Text('1.0.0'),
+            leading: Icon(Icons.info_outline),
           ),
         ],
       ),

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:todoapp/models/category.dart';
 import 'package:todoapp/providers/task_provider.dart';
-import 'package:todoapp/providers/theme_provider.dart';
 import 'package:todoapp/providers/pomodoro_provider.dart';
 import 'package:todoapp/screens/calendar_screen.dart';
 import 'package:todoapp/screens/planning_wizard_screen.dart';
@@ -12,9 +11,15 @@ import 'package:todoapp/screens/health_screen.dart';
 import 'package:todoapp/screens/notes_screen.dart';
 import 'package:todoapp/screens/goals_screen.dart';
 import 'package:todoapp/screens/shopping_screen.dart';
+import 'package:todoapp/screens/passwords_screen.dart';
+import 'package:todoapp/screens/notifications_screen.dart';
 import 'package:todoapp/screens/settings_screen.dart';
 import 'package:todoapp/screens/task_form_screen.dart';
+import 'package:todoapp/widgets/main_app_drawer.dart';
 import 'package:todoapp/widgets/task_tile.dart';
+import 'package:todoapp/widgets/contrast_choice_chip.dart';
+import 'package:todoapp/widgets/luxury_status_dot.dart';
+import 'package:todoapp/widgets/scrollable_bottom_nav.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,85 +30,213 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  static final List<NavDestinationData> _navDestinations = [
+    const NavDestinationData(
+      icon: Icons.task_alt_outlined,
+      selectedIcon: Icons.task_alt_rounded,
+      label: 'Tasks',
+    ),
+    const NavDestinationData(
+      icon: Icons.account_balance_wallet_outlined,
+      selectedIcon: Icons.account_balance_wallet_rounded,
+      label: 'Finance',
+    ),
+    const NavDestinationData(
+      icon: Icons.favorite_outline,
+      selectedIcon: Icons.favorite_rounded,
+      label: 'Health',
+    ),
+    const NavDestinationData(
+      icon: Icons.edit_note_outlined,
+      selectedIcon: Icons.edit_note_rounded,
+      label: 'Notes',
+    ),
+    const NavDestinationData(
+      icon: Icons.flag_outlined,
+      selectedIcon: Icons.flag_rounded,
+      label: 'Goals',
+    ),
+    const NavDestinationData(
+      icon: Icons.shopping_bag_outlined,
+      selectedIcon: Icons.shopping_bag_rounded,
+      label: 'Shop',
+    ),
+    const NavDestinationData(
+      icon: Icons.key_outlined,
+      selectedIcon: Icons.key_rounded,
+      label: 'Vault',
+    ),
+  ];
 
   final List<Widget> _screens = [
     const _TaskListView(),
-    const CalendarScreen(),
     const FinanceScreen(),
     const HealthScreen(),
     const NotesScreen(),
     const GoalsScreen(),
     const ShoppingScreen(),
+    const PasswordsScreen(),
   ];
+
+  void _closeDrawerThen(VoidCallback action) {
+    _scaffoldKey.currentState?.closeDrawer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) action();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surface = theme.colorScheme.surface;
-    // Explicit contrast so labels/icons never disappear on light backgrounds.
-    const selectedBlue = Color(0xFF1565C0);
-    const unselected = Color(0xFF5F6368);
+    final cs = theme.colorScheme;
+    final surface = cs.surface;
+    final outline = cs.outlineVariant.withValues(alpha: 0.35);
+    final sectionTitle = _navDestinations[_currentIndex].label;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      key: _scaffoldKey,
+      drawer: Consumer<TaskProvider>(
+        builder: (context, tp, _) {
+          return MainAppDrawer(
+            notificationCount: NotificationsScreen.countAlertTasks(tp),
+            onCalendar: () {
+              _closeDrawerThen(() {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const CalendarScreen(),
+                  ),
+                );
+              });
+            },
+            onNotifications: () {
+              _closeDrawerThen(() {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const NotificationsScreen(),
+                  ),
+                );
+              });
+            },
+            onSettings: () {
+              _closeDrawerThen(() {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              });
+            },
+          );
+        },
       ),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const TaskFormScreen()),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: cs.surface,
+            elevation: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: cs.surface,
+                border: Border(
+                  bottom: BorderSide(color: outline),
+                ),
               ),
-              child: const Icon(Icons.add),
-            )
-          : null,
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        elevation: 8,
-        backgroundColor: surface,
-        selectedItemColor: selectedBlue,
-        unselectedItemColor: unselected,
-        showUnselectedLabels: true,
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle_outline, color: unselected),
-            activeIcon: Icon(Icons.check_circle, color: selectedBlue),
-            label: 'Tasks',
+              child: SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  height: 52,
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: 'Menu',
+                        style: IconButton.styleFrom(
+                          foregroundColor: cs.onSurface,
+                          backgroundColor: cs.surfaceContainerHigh,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () =>
+                            _scaffoldKey.currentState?.openDrawer(),
+                        icon: const Icon(Icons.menu_rounded, size: 24),
+                      ),
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 320),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder: (child, anim) {
+                            return FadeTransition(
+                              opacity: anim,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, 0.08),
+                                  end: Offset.zero,
+                                ).animate(CurvedAnimation(
+                                  parent: anim,
+                                  curve: Curves.easeOutCubic,
+                                )),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'Luxury Todo · $sectionTitle',
+                            key: ValueKey<String>(sectionTitle),
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.15,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 48,
+                        child: Center(
+                          child: LuxuryStatusDot(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined, color: unselected),
-            activeIcon: Icon(Icons.calendar_month, color: selectedBlue),
-            label: 'Calendar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined, color: unselected),
-            activeIcon: Icon(Icons.account_balance_wallet, color: selectedBlue),
-            label: 'Finance',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_outline, color: unselected),
-            activeIcon: Icon(Icons.favorite, color: selectedBlue),
-            label: 'Health',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.edit_note_outlined, color: unselected),
-            activeIcon: Icon(Icons.edit_note, color: selectedBlue),
-            label: 'Notes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.flag_outlined, color: unselected),
-            activeIcon: Icon(Icons.flag, color: selectedBlue),
-            label: 'Goals',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_bag_outlined, color: unselected),
-            activeIcon: Icon(Icons.shopping_bag, color: selectedBlue),
-            label: 'Shop',
+          Expanded(
+            child: ColoredBox(
+              color: surface,
+              child: IndexedStack(
+                index: _currentIndex,
+                children: _screens,
+              ),
+            ),
           ),
         ],
+      ),
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton.extended(
+              heroTag: 'fab_home_new_task',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TaskFormScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.add_task_rounded),
+              label: const Text('New task'),
+            )
+          : null,
+      bottomNavigationBar: ScrollableBottomNav(
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) =>
+            setState(() => _currentIndex = index),
+        destinations: _navDestinations,
       ),
     );
   }
@@ -134,7 +267,6 @@ class _TaskListViewState extends State<_TaskListView> {
   @override
   Widget build(BuildContext context) {
     final taskProvider = Provider.of<TaskProvider>(context);
-    final themeProvider = Provider.of<ThemeProvider>(context);
     final tasks = taskProvider.tasks;
 
     final appBarBg =
@@ -147,9 +279,12 @@ class _TaskListViewState extends State<_TaskListView> {
           color: appBarBg,
           elevation: 0,
           child: SafeArea(
+            top: false,
             bottom: false,
             child: _selectionMode
                 ? AppBar(
+                    primary: false,
+                    toolbarHeight: 48,
                     leading: IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => setState(() {
@@ -182,34 +317,24 @@ class _TaskListViewState extends State<_TaskListView> {
                     ],
                   )
                 : AppBar(
+                    primary: false,
+                    toolbarHeight: 48,
                     title: const Text('My Todos'),
                     leading: IconButton(
-                      icon: const Icon(Icons.auto_awesome_outlined, color: Colors.blue),
+                      icon: Icon(
+                        Icons.auto_awesome_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       tooltip: 'Planning Wizard',
                       onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const PlanningWizardScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const PlanningWizardScreen(),
+                        ),
                       ),
                     ),
-                    actions: [
-                      const _PomodoroStatusWidget(),
-                      IconButton(
-                        icon: Icon(
-                          themeProvider.isDarkMode
-                              ? Icons.light_mode
-                              : Icons.dark_mode,
-                        ),
-                        onPressed: () => themeProvider.toggleTheme(),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.settings_outlined),
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SettingsScreen(),
-                          ),
-                        ),
-                      ),
+                    actions: const [
+                      _PomodoroStatusWidget(),
                     ],
                   ),
           ),
@@ -228,12 +353,13 @@ class _TaskListViewState extends State<_TaskListView> {
                   .map(
                     (f) => Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(
-                          f.name[0].toUpperCase() + f.name.substring(1),
-                        ),
+                      child: ContrastChoiceChip(
+                        label:
+                            f.name[0].toUpperCase() + f.name.substring(1),
                         selected: taskProvider.selectedFilter == f,
-                        onSelected: (val) => taskProvider.selectFilter(f),
+                        onSelected: (v) {
+                          if (v) taskProvider.selectFilter(f);
+                        },
                       ),
                     ),
                   )
@@ -263,9 +389,9 @@ class _TaskListViewState extends State<_TaskListView> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.add_circle_outline,
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                     size: 20,
                   ),
                   onPressed: () =>
@@ -379,19 +505,13 @@ class _CategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
+      child: ContrastChoiceChip(
+        label: label,
         selected: isSelected,
-        onSelected: (_) => onTap(),
-        selectedColor: (color ?? Colors.blue).withOpacity(0.2),
-        checkmarkColor: color ?? Colors.blue,
-        labelStyle: TextStyle(
-          color: isSelected ? (color ?? Colors.blue) : Colors.grey,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          fontSize: 12,
-        ),
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        accentColor: color,
+        onSelected: (v) {
+          if (v) onTap();
+        },
       ),
     );
   }

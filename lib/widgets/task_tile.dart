@@ -22,16 +22,17 @@ class TaskTile extends StatelessWidget {
     required this.onLongPress,
   });
 
-  Color _getPriorityColor() {
+  Color _getPriorityColor(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     switch (task.priority) {
       case TaskPriority.urgent:
-        return Colors.red;
+        return cs.error;
       case TaskPriority.high:
-        return Colors.orange;
+        return const Color(0xFFFF6D00);
       case TaskPriority.medium:
-        return Colors.blue;
+        return cs.primary;
       case TaskPriority.low:
-        return Colors.green;
+        return const Color(0xFF2E7D32);
     }
   }
 
@@ -100,27 +101,36 @@ class TaskTile extends StatelessWidget {
         color: isSelected
             ? theme.colorScheme.primaryContainer.withOpacity(0.3)
             : theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: isSelected
             ? Border.all(color: theme.colorScheme.primary, width: 2)
             : isOverdue
-            ? Border.all(color: Colors.redAccent.withOpacity(0.5), width: 1.5)
-            : Border.all(color: Colors.transparent),
-        boxShadow: isOverdue
-            ? [
-                BoxShadow(
-                  color: Colors.redAccent.withOpacity(0.1),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
+                ? Border.all(
+                    color: theme.colorScheme.error.withValues(alpha: 0.45),
+                    width: 1.5,
+                  )
+                : Border.all(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          if (isOverdue)
+            BoxShadow(
+              color: theme.colorScheme.error.withValues(alpha: 0.12),
+              blurRadius: 10,
+              spreadRadius: 0,
+            ),
+        ],
       ),
       child: Opacity(
         opacity: blocked ? 0.5 : 1.0,
         child: ListTile(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           onTap: blocked ? null : onTap,
           onLongPress: blocked ? null : onLongPress,
@@ -134,7 +144,9 @@ class TaskTile extends StatelessWidget {
                   width: 4,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isOverdue ? Colors.red : _getPriorityColor(),
+                    color: isOverdue
+                        ? theme.colorScheme.error
+                        : _getPriorityColor(context),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -161,14 +173,15 @@ class TaskTile extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     countdownText,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
-                      color: Colors.blue,
+                      color: theme.colorScheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -250,17 +263,17 @@ class TaskTile extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.repeat,
                           size: 12,
-                          color: Colors.blueGrey,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           task.recurringInterval.name.toUpperCase(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 9,
-                            color: Colors.blueGrey,
+                            color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -296,12 +309,22 @@ class TaskTile extends StatelessWidget {
                       ],
                     ),
                   if (hasAttach)
-                    const Row(
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.attach_file, size: 12, color: Colors.blueGrey),
-                        SizedBox(width: 2),
-                        Text('Files', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                        Icon(
+                          Icons.attach_file,
+                          size: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Files',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                 ],
@@ -321,9 +344,9 @@ class TaskTile extends StatelessWidget {
                       onPressed: () => taskProvider.toggleFavorite(task.id),
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.center_focus_strong,
-                        color: Colors.blue,
+                        color: theme.colorScheme.primary,
                         size: 20,
                       ),
                       onPressed: () => Navigator.push(

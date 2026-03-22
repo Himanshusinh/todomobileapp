@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:todoapp/models/sub_task.dart';
 import 'package:todoapp/models/task_item.dart';
 import 'package:todoapp/providers/task_provider.dart';
 import 'package:todoapp/providers/theme_provider.dart';
 import 'package:todoapp/providers/pomodoro_provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:todoapp/models/category.dart';
 import 'package:todoapp/models/bill.dart';
 import 'package:todoapp/models/monthly_budget.dart';
@@ -41,10 +41,13 @@ import 'package:todoapp/models/shop_category.dart';
 import 'package:todoapp/models/shopping_list_item.dart';
 import 'package:todoapp/models/home_inventory_item.dart';
 import 'package:todoapp/models/wishlist_item.dart';
+import 'package:todoapp/models/password_vault_item.dart';
 import 'package:todoapp/providers/notes_provider.dart';
+import 'package:todoapp/providers/password_vault_provider.dart';
 import 'package:todoapp/providers/goals_provider.dart';
 import 'package:todoapp/providers/shopping_provider.dart';
 import 'package:todoapp/screens/home_screen.dart';
+import 'package:todoapp/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,6 +92,7 @@ void main() async {
   Hive.registerAdapter(ShoppingListItemAdapter());
   Hive.registerAdapter(HomeInventoryItemAdapter());
   Hive.registerAdapter(WishlistItemAdapter());
+  Hive.registerAdapter(PasswordVaultItemAdapter());
 
   await Hive.openBox<TaskItem>('tasks');
   await Hive.openBox<Category>('categories');
@@ -122,17 +126,25 @@ void main() async {
   await Hive.openBox<ShoppingListItem>('shopping_items');
   await Hive.openBox<HomeInventoryItem>('home_inventory');
   await Hive.openBox<WishlistItem>('wishlist_items');
+  await Hive.openBox<PasswordVaultItem>('password_vault');
+
+  final prefs = await SharedPreferences.getInstance();
+  final initialDark =
+      prefs.getBool(ThemeProvider.preferenceKeyDarkMode) ?? false;
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(initialIsDark: initialDark),
+        ),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => FinanceProvider()),
         ChangeNotifierProvider(create: (_) => HealthProvider()),
         ChangeNotifierProvider(create: (_) => NotesProvider()),
         ChangeNotifierProvider(create: (_) => GoalsProvider()),
         ChangeNotifierProvider(create: (_) => ShoppingProvider()),
+        ChangeNotifierProvider(create: (_) => PasswordVaultProvider()),
         ChangeNotifierProvider(create: (_) => PomodoroProvider()),
       ],
       child: const MyApp(),
@@ -150,93 +162,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Luxury Todo',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(Brightness.light),
-      darkTheme: _buildTheme(Brightness.dark),
+      theme: LuxuryAppTheme.theme(Brightness.light),
+      darkTheme: LuxuryAppTheme.theme(Brightness.dark),
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const HomeScreen(),
-    );
-  }
-
-  ThemeData _buildTheme(Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    final primaryBlue = Colors.blue.shade600;
-    final onSurface = isDark ? Colors.white : const Color(0xFF1C1B1F);
-    final onSurfaceVariant = isDark ? Colors.grey.shade400 : const Color(0xFF49454F);
-
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: primaryBlue,
-      brightness: brightness,
-      surface: isDark ? Colors.black : Colors.white,
-    ).copyWith(
-      onSurface: onSurface,
-      onSurfaceVariant: onSurfaceVariant,
-      onPrimary: Colors.white,
-      onSecondary: Colors.white,
-    );
-
-    return ThemeData(
-      useMaterial3: true,
-      brightness: brightness,
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: isDark ? Colors.black : Colors.white,
-      iconTheme: IconThemeData(color: onSurface, size: 24),
-      textTheme: GoogleFonts.poppinsTextTheme(
-        ThemeData(brightness: brightness).textTheme,
-      ).apply(
-        bodyColor: onSurface,
-        displayColor: onSurface,
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? Colors.black : Colors.white,
-        foregroundColor: onSurface,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: IconThemeData(color: onSurface),
-        actionsIconTheme: IconThemeData(color: onSurface),
-        titleTextStyle: GoogleFonts.poppins(
-          color: onSurface,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: primaryBlue.withValues(alpha: isDark ? 0.35 : 0.22),
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return IconThemeData(color: primaryBlue, size: 24);
-          }
-          return IconThemeData(color: onSurfaceVariant, size: 24);
-        }),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          final base = GoogleFonts.poppins(fontSize: 12);
-          if (states.contains(WidgetState.selected)) {
-            return base.copyWith(
-              color: primaryBlue,
-              fontWeight: FontWeight.w600,
-            );
-          }
-          return base.copyWith(color: onSurfaceVariant);
-        }),
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      checkboxTheme: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return primaryBlue;
-          return null;
-        }),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
-      cardTheme: CardThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 0,
-        color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
-      ),
     );
   }
 }

@@ -53,6 +53,9 @@ class GoalsProvider extends ChangeNotifier {
       ..sort((a, b) => a.title.compareTo(b.title));
   }
 
+  /// All milestones (e.g. calendar due dates).
+  List<MilestoneItem> get allMilestones => _milestones.values.toList();
+
   void addGoal({
     required String title,
     String description = '',

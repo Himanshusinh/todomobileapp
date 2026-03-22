@@ -79,12 +79,13 @@ class _GoalsScreenState extends State<GoalsScreen>
                   color: appBarBg,
                   elevation: 0,
                   child: SafeArea(
+                    top: false,
                     bottom: false,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         SizedBox(
-                          height: kToolbarHeight,
+                          height: 48,
                           child: Center(
                             child: Text(
                               'Goals & Projects',
@@ -138,11 +139,13 @@ class _GoalsScreenState extends State<GoalsScreen>
     switch (_mainTab) {
       case 0:
         return FloatingActionButton(
+          heroTag: 'fab_goals_milestones',
           onPressed: () => _showGoalDialog(context),
           child: const Icon(Icons.flag),
         );
       case 1:
         return FloatingActionButton(
+          heroTag: 'fab_goals_kanban',
           onPressed: _selectedBoardId == null
               ? null
               : () => _showKanbanDialog(context, _selectedBoardId!),
@@ -150,11 +153,13 @@ class _GoalsScreenState extends State<GoalsScreen>
         );
       case 2:
         return FloatingActionButton(
+          heroTag: 'fab_goals_okrs',
           onPressed: () => _showObjectiveDialog(context),
           child: const Icon(Icons.track_changes),
         );
       case 3:
         return FloatingActionButton(
+          heroTag: 'fab_goals_vision',
           onPressed: () => _showVisionBucketMenu(context),
           child: const Icon(Icons.add),
         );

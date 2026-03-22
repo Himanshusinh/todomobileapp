@@ -41,12 +41,13 @@ class _NotesScreenState extends State<NotesScreen> with SingleTickerProviderStat
           color: appBarBg,
           elevation: 0,
           child: SafeArea(
+            top: false,
             bottom: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
-                  height: kToolbarHeight,
+                  height: 48,
                   child: Center(
                     child: Text(
                       'Notes & Journal',
@@ -312,6 +313,7 @@ class _BrainstormTab extends StatelessWidget {
           right: 16,
           bottom: 16,
           child: FloatingActionButton(
+            heroTag: 'fab_notes_ideas',
             onPressed: () => _editIdea(context, null),
             child: const Icon(Icons.add),
           ),
@@ -435,6 +437,7 @@ class _QuickCaptureTab extends StatelessWidget {
           right: 16,
           bottom: 16,
           child: FloatingActionButton.extended(
+            heroTag: 'fab_notes_quick_capture',
             onPressed: () => _newCapture(context),
             icon: const Icon(Icons.bolt),
             label: const Text('Quick add'),
