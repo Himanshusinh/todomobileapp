@@ -31,40 +31,19 @@ class _NotesScreenState extends State<NotesScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final appBarBg = theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: appBarBg,
-          elevation: 0,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: 48,
-                  child: Center(
-                    child: Text(
-                      'Notes & Journal',
-                      style: Theme.of(context).appBarTheme.titleTextStyle,
-                    ),
-                  ),
-                ),
-                TabBar(
-                  controller: _tabs,
-                  tabs: const [
-                    Tab(text: 'Journal'),
-                    Tab(text: 'Ideas'),
-                    Tab(text: 'Capture'),
-                  ],
-                ),
-              ],
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: TabBar(
+            controller: _tabs,
+            isScrollable: true,
+            tabs: const [
+              Tab(text: 'Journal'),
+              Tab(text: 'Ideas'),
+              Tab(text: 'Capture'),
+            ],
           ),
         ),
         Expanded(
@@ -90,90 +69,185 @@ class _JournalTab extends StatefulWidget {
 }
 
 class _JournalTabState extends State<_JournalTab> {
-  late DateTime _day;
+  final _searchAllC = TextEditingController();
+  _JournalViewMode _viewMode = _JournalViewMode.list;
 
   @override
-  void initState() {
-    super.initState();
-    final n = DateTime.now();
-    _day = DateTime(n.year, n.month, n.day);
+  void dispose() {
+    _searchAllC.dispose();
+    super.dispose();
   }
-
-  String get _key => NotesProvider.dateKey(_day);
 
   @override
   Widget build(BuildContext context) {
     final notes = context.watch<NotesProvider>();
-    final entries = notes.journalForDay(_key);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final q = _searchAllC.text.trim().toLowerCase();
+    final list = notes.allJournalEntries.where((e) {
+      if (q.isEmpty) return true;
+      return e.title.toLowerCase().contains(q) ||
+          e.bodyMarkdown.toLowerCase().contains(q) ||
+          e.dateKey.toLowerCase().contains(q);
+    }).toList();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Stack(
       children: [
-        Row(
-          children: [
-            IconButton(onPressed: () => setState(() => _day = _day.subtract(const Duration(days: 1))), icon: const Icon(Icons.chevron_left)),
-            Expanded(
-              child: Text(
-                DateFormat('EEEE, MMM d').format(_day),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _searchAllC,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Search notes…',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        filled: true,
+                        fillColor: cs.surfaceContainerLow,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: SegmentedButton<_JournalViewMode>(
+                        showSelectedIcon: false,
+                        style: ButtonStyle(
+                          visualDensity:
+                              const VisualDensity(horizontal: -2, vertical: -2),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const WidgetStatePropertyAll(
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                        ),
+                        segments: const [
+                          ButtonSegment(
+                            value: _JournalViewMode.list,
+                            icon: Icon(Icons.view_agenda_outlined, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: _JournalViewMode.grid,
+                            icon: Icon(Icons.grid_view_rounded, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: _JournalViewMode.flex,
+                            icon: Icon(Icons.view_module_outlined, size: 18),
+                          ),
+                        ],
+                        selected: {_viewMode},
+                        onSelectionChanged: (v) =>
+                            setState(() => _viewMode = v.first),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            IconButton(onPressed: () => setState(() => _day = _day.add(const Duration(days: 1))), icon: const Icon(Icons.chevron_right)),
-            IconButton(
-              icon: const Icon(Icons.today_outlined),
-              onPressed: () {
-                final n = DateTime.now();
-                setState(() => _day = DateTime(n.year, n.month, n.day));
-              },
-            ),
+            if (list.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 88),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    q.isEmpty ? 'No notes yet.' : 'No matches.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              )
+            else ...[
+              if (_viewMode == _JournalViewMode.list)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (ctx, i) {
+                        final e = list[i];
+                        final title =
+                            e.title.trim().isEmpty ? '(untitled)' : e.title;
+                        return _NoteListRow(
+                          dense: true,
+                          title: title,
+                          subtitle: DateFormat('MMM d, y').format(e.updatedAt),
+                          meta: '',
+                          onTap: () => _openJournalEditor(context, e),
+                          onDelete: () => notes.deleteJournalEntry(e.id),
+                        );
+                      },
+                      childCount: list.length,
+                    ),
+                  ),
+                )
+              else if (_viewMode == _JournalViewMode.grid)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (ctx, i) {
+                        final e = list[i];
+                        return _JournalGridTile(
+                          title: e.title.trim().isEmpty ? '(untitled)' : e.title,
+                          date: DateFormat('MMM d').format(e.updatedAt),
+                          onTap: () => _openJournalEditor(context, e),
+                          onDelete: () => notes.deleteJournalEntry(e.id),
+                        );
+                      },
+                      childCount: list.length,
+                    ),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 1.35,
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+                  sliver: SliverToBoxAdapter(
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final e in list)
+                          _JournalFlexTile(
+                            title: e.title.trim().isEmpty ? '(untitled)' : e.title,
+                            date: DateFormat('MMM d').format(e.updatedAt),
+                            onTap: () => _openJournalEditor(context, e),
+                            onDelete: () => notes.deleteJournalEntry(e.id),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Daily journal — markdown supported (**bold**, *italic*, lists).',
-          style: Theme.of(context).textTheme.bodySmall,
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: SafeArea(
+            child: FloatingActionButton(
+              heroTag: 'fab_notes_new_entry',
+              onPressed: () => _openJournalEditor(context, null),
+              child: const Icon(Icons.add_rounded),
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
-        FilledButton.tonalIcon(
-          onPressed: () => _openJournalEditor(context, null),
-          icon: const Icon(Icons.add),
-          label: const Text('New entry for this day'),
-        ),
-        const SizedBox(height: 16),
-        if (entries.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: Text('No entries yet.')),
-          )
-        else
-          ...entries.map((e) => Card(
-                child: ListTile(
-                  title: Text(e.title.isEmpty ? '(untitled)' : e.title),
-                  subtitle: Text(
-                    e.bodyMarkdown.length > 120 ? '${e.bodyMarkdown.substring(0, 120)}…' : e.bodyMarkdown,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => notes.deleteJournalEntry(e.id),
-                  ),
-                  onTap: () => _openJournalEditor(context, e),
-                ),
-              )),
-        const SizedBox(height: 24),
-        const Divider(),
-        ListTile(
-          title: const Text('All entries'),
-          subtitle: const Text('Browse recent'),
-        ),
-        ...notes.allJournalEntries.take(15).map((e) => ListTile(
-              dense: true,
-              title: Text(e.title.isEmpty ? e.dateKey : e.title),
-              subtitle: Text(DateFormat('MMM d, y').format(e.updatedAt)),
-              onTap: () => _openJournalEditor(context, e),
-            )),
       ],
     );
   }
@@ -182,7 +256,8 @@ class _JournalTabState extends State<_JournalTab> {
     final notes = context.read<NotesProvider>();
     final titleC = TextEditingController(text: existing?.title ?? '');
     final bodyC = TextEditingController(text: existing?.bodyMarkdown ?? '');
-    final dateKey = existing?.dateKey ?? _key;
+    final dateKey =
+        existing?.dateKey ?? NotesProvider.dateKey(DateTime.now());
 
     if (!context.mounted) return;
     await showModalBottomSheet<void>(
@@ -256,6 +331,245 @@ class _JournalTabState extends State<_JournalTab> {
   }
 }
 
+enum _JournalViewMode { list, grid, flex }
+
+class _JournalGridTile extends StatelessWidget {
+  const _JournalGridTile({
+    required this.title,
+    required this.date,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final String title;
+  final String date;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Material(
+      color: cs.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete',
+                    onPressed: onDelete,
+                    visualDensity:
+                        const VisualDensity(horizontal: -2, vertical: -2),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                date,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JournalFlexTile extends StatelessWidget {
+  const _JournalFlexTile({
+    required this.title,
+    required this.date,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final String title;
+  final String date;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 120, maxWidth: 210),
+      child: Material(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(999),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  date,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  onPressed: onDelete,
+                  visualDensity:
+                      const VisualDensity(horizontal: -3, vertical: -3),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NoteListRow extends StatelessWidget {
+  const _NoteListRow({
+    required this.title,
+    required this.subtitle,
+    required this.meta,
+    required this.onTap,
+    required this.onDelete,
+    this.dense = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String meta;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                8,
+                dense ? 8 : 10,
+                4,
+                dense ? 8 : 10,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 6),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (meta.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                meta,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            maxLines: dense ? 1 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete',
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Divider(
+          height: 1,
+          thickness: 1,
+          color: cs.outlineVariant.withValues(alpha: 0.28),
+        ),
+      ],
+    );
+  }
+}
+
 class _BrainstormTab extends StatelessWidget {
   const _BrainstormTab();
 
@@ -263,11 +577,24 @@ class _BrainstormTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final notes = context.watch<NotesProvider>();
     final ideas = notes.brainstormIdeas;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Stack(
       children: [
         ideas.isEmpty
-            ? const Center(child: Text('Tap + to add a card. Rearrange ideas freely.'))
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Add idea cards for projects, plans, and quick thoughts.\nTap + to start.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              )
             : GridView.builder(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -281,7 +608,8 @@ class _BrainstormTab extends StatelessWidget {
                   final idea = ideas[i];
                   final color = Color(idea.colorValue);
                   return Card(
-                    color: color.withValues(alpha: 0.2),
+                    elevation: 0,
+                    color: cs.surfaceContainerLow,
                     child: InkWell(
                       onTap: () => _editIdea(context, idea),
                       child: Padding(
@@ -291,7 +619,11 @@ class _BrainstormTab extends StatelessWidget {
                           children: [
                             Text(
                               idea.title.isEmpty ? 'Idea' : idea.title,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Expanded(
@@ -299,7 +631,18 @@ class _BrainstormTab extends StatelessWidget {
                                 idea.content,
                                 maxLines: 6,
                                 overflow: TextOverflow.fade,
-                                style: Theme.of(context).textTheme.bodySmall,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(99),
                               ),
                             ),
                           ],
@@ -405,30 +748,95 @@ class _QuickCaptureTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final notes = context.watch<NotesProvider>();
     final items = notes.quickCaptures;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Stack(
       children: [
         items.isEmpty
-            ? const Center(
+            ? Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Brain dump — quick thoughts without a date. Open from + '),
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Quick capture is a brain-dump.\nTap “Quick add” to save anything.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
                 itemCount: items.length,
+                separatorBuilder: (context, _) => Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: cs.outlineVariant.withValues(alpha: 0.28),
+                ),
                 itemBuilder: (ctx, i) {
                   final q = items[i];
-                  return Card(
-                    child: ListTile(
-                      title: Text(q.body, maxLines: 4, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(DateFormat('MMM d, h:mm a').format(q.createdAt)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => notes.deleteQuickCapture(q.id),
+                  return Dismissible(
+                    key: ValueKey('capture_${q.id}'),
+                    direction: DismissDirection.endToStart,
+                    background: const SizedBox.shrink(),
+                    secondaryBackground: Container(
+                      color: cs.error.withValues(alpha: 0.12),
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 16),
+                      child: Icon(Icons.delete_outline_rounded, color: cs.error),
+                    ),
+                    onDismissed: (_) => notes.deleteQuickCapture(q.id),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _editCapture(context, q),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                margin: const EdgeInsets.only(top: 6),
+                                decoration: BoxDecoration(
+                                  color: cs.tertiary.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      q.body,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      DateFormat('MMM d, h:mm a').format(q.createdAt),
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Delete',
+                                onPressed: () => notes.deleteQuickCapture(q.id),
+                                icon: const Icon(Icons.close_rounded, size: 20),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      onTap: () => _editCapture(context, q),
                     ),
                   );
                 },

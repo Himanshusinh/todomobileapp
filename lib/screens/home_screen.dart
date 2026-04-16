@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:todoapp/models/category.dart';
+import 'package:todoapp/models/task_item.dart';
 import 'package:todoapp/providers/task_provider.dart';
-import 'package:todoapp/providers/pomodoro_provider.dart';
 import 'package:todoapp/screens/calendar_screen.dart';
-import 'package:todoapp/screens/planning_wizard_screen.dart';
 import 'package:todoapp/screens/finance_screen.dart';
 import 'package:todoapp/screens/health_screen.dart';
 import 'package:todoapp/screens/notes_screen.dart';
 import 'package:todoapp/screens/goals_screen.dart';
-import 'package:todoapp/screens/shopping_screen.dart';
 import 'package:todoapp/screens/passwords_screen.dart';
 import 'package:todoapp/screens/notifications_screen.dart';
 import 'package:todoapp/screens/settings_screen.dart';
@@ -18,7 +16,6 @@ import 'package:todoapp/screens/task_form_screen.dart';
 import 'package:todoapp/widgets/main_app_drawer.dart';
 import 'package:todoapp/widgets/task_tile.dart';
 import 'package:todoapp/widgets/contrast_choice_chip.dart';
-import 'package:todoapp/widgets/luxury_status_dot.dart';
 import 'package:todoapp/widgets/scrollable_bottom_nav.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -30,7 +27,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  late final PageController _pageController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// After removing tabs (e.g. Shop), a persisted index can be out of range and
+  /// [IndexedStack] shows a blank body. Keep selection valid.
+  int get _maxTabIndex => _navDestinations.length - 1;
+
+  int _clampTabIndex(int i) {
+    if (_navDestinations.isEmpty) return 0;
+    if (i < 0) return 0;
+    if (i > _maxTabIndex) return _maxTabIndex;
+    return i;
+  }
 
   static final List<NavDestinationData> _navDestinations = [
     const NavDestinationData(
@@ -59,11 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Goals',
     ),
     const NavDestinationData(
-      icon: Icons.shopping_bag_outlined,
-      selectedIcon: Icons.shopping_bag_rounded,
-      label: 'Shop',
-    ),
-    const NavDestinationData(
       icon: Icons.key_outlined,
       selectedIcon: Icons.key_rounded,
       label: 'Vault',
@@ -76,7 +80,6 @@ class _HomeScreenState extends State<HomeScreen> {
     const HealthScreen(),
     const NotesScreen(),
     const GoalsScreen(),
-    const ShoppingScreen(),
     const PasswordsScreen(),
   ];
 
@@ -88,12 +91,35 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final surface = cs.surface;
     final outline = cs.outlineVariant.withValues(alpha: 0.35);
-    final sectionTitle = _navDestinations[_currentIndex].label;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    // Space reserved for the floating bottom nav so content/FABs don't overlap it.
+    const navHeight = 70.0;
+    const navMarginBottom = 10.0;
+    final bottomReserve = navHeight + navMarginBottom + bottomInset;
+    final safeIndex = _clampTabIndex(_currentIndex);
+    if (safeIndex != _currentIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentIndex = safeIndex);
+      });
+    }
+    final sectionTitle = _navDestinations[safeIndex].label;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -131,113 +157,139 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
         children: [
-          Material(
-            color: cs.surface,
-            elevation: 0,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Material(
                 color: cs.surface,
-                border: Border(
-                  bottom: BorderSide(color: outline),
-                ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: SizedBox(
-                  height: 52,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 6),
-                      IconButton(
-                        tooltip: 'Menu',
-                        style: IconButton.styleFrom(
-                          foregroundColor: cs.onSurface,
-                          backgroundColor: cs.surfaceContainerHigh,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: () =>
-                            _scaffoldKey.currentState?.openDrawer(),
-                        icon: const Icon(Icons.menu_rounded, size: 24),
-                      ),
-                      Expanded(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 320),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder: (child, anim) {
-                            return FadeTransition(
-                              opacity: anim,
-                              child: SlideTransition(
-                                position: Tween<Offset>(
-                                  begin: const Offset(0, 0.08),
-                                  end: Offset.zero,
-                                ).animate(CurvedAnimation(
-                                  parent: anim,
-                                  curve: Curves.easeOutCubic,
-                                )),
-                                child: child,
+                elevation: 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: cs.surface,
+                    border: Border(
+                      bottom: BorderSide(color: outline),
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: SizedBox(
+                      height: 52,
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 6),
+                          IconButton(
+                            tooltip: 'Menu',
+                            style: IconButton.styleFrom(
+                              foregroundColor: cs.onSurface,
+                              backgroundColor: cs.surfaceContainerHigh,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            );
-                          },
-                          child: Text(
-                            'Luxury Todo · $sectionTitle',
-                            key: ValueKey<String>(sectionTitle),
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.15,
-                              color: cs.onSurface,
+                            ),
+                            onPressed: () =>
+                                _scaffoldKey.currentState?.openDrawer(),
+                            icon: const Icon(Icons.menu_rounded, size: 24),
+                          ),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 320),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, anim) {
+                                return FadeTransition(
+                                  opacity: anim,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.08),
+                                      end: Offset.zero,
+                                    ).animate(CurvedAnimation(
+                                      parent: anim,
+                                      curve: Curves.easeOutCubic,
+                                    )),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                sectionTitle,
+                                key: ValueKey<String>(sectionTitle),
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.15,
+                                  color: cs.onSurface,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                        ],
                       ),
-                      const SizedBox(
-                        width: 48,
-                        child: Center(
-                          child: LuxuryStatusDot(),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+              Expanded(
+                child: ColoredBox(
+                  color: surface,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: bottomReserve),
+                    child: PageView(
+                      controller: _pageController,
+                      onPageChanged: (i) {
+                        final next = _clampTabIndex(i);
+                        if (next == _currentIndex) return;
+                        setState(() => _currentIndex = next);
+                      },
+                      children: _screens,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: ColoredBox(
-              color: surface,
-              child: IndexedStack(
-                index: _currentIndex,
-                children: _screens,
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 10,
+            child: SafeArea(
+              top: false,
+              child: ScrollableBottomNav(
+                currentIndex: safeIndex,
+                floating: true,
+                onDestinationSelected: (index) {
+                  final next = _clampTabIndex(index);
+                  setState(() => _currentIndex = next);
+                  _pageController.animateToPage(
+                    next,
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeOutCubic,
+                  );
+                },
+                destinations: _navDestinations,
               ),
             ),
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton.extended(
-              heroTag: 'fab_home_new_task',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TaskFormScreen(),
+      floatingActionButton: safeIndex == 0
+          ? Padding(
+              padding: EdgeInsets.only(bottom: bottomReserve + 4),
+              child: FloatingActionButton.extended(
+                heroTag: 'fab_home_new_task',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TaskFormScreen(),
+                  ),
                 ),
+                icon: const Icon(Icons.add_task_rounded),
+                label: const Text('New task'),
               ),
-              icon: const Icon(Icons.add_task_rounded),
-              label: const Text('New task'),
             )
           : null,
-      bottomNavigationBar: ScrollableBottomNav(
-        currentIndex: _currentIndex,
-        onDestinationSelected: (index) =>
-            setState(() => _currentIndex = index),
-        destinations: _navDestinations,
-      ),
     );
   }
 }
@@ -269,108 +321,164 @@ class _TaskListViewState extends State<_TaskListView> {
     final taskProvider = Provider.of<TaskProvider>(context);
     final tasks = taskProvider.tasks;
 
-    final appBarBg =
-        Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).colorScheme.surface;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: appBarBg,
-          elevation: 0,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: _selectionMode
-                ? AppBar(
-                    primary: false,
-                    toolbarHeight: 48,
-                    leading: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => setState(() {
-                        _selectionMode = false;
-                        _selectedIds.clear();
-                      }),
-                    ),
-                    title: Text('${_selectedIds.length} selected'),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.check_circle_outline),
-                        onPressed: () {
-                          taskProvider.completeAll(_selectedIds.toList());
-                          setState(() {
-                            _selectionMode = false;
-                            _selectedIds.clear();
-                          });
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          taskProvider.deleteAll(_selectedIds.toList());
-                          setState(() {
-                            _selectionMode = false;
-                            _selectedIds.clear();
-                          });
-                        },
-                      ),
-                    ],
-                  )
-                : AppBar(
-                    primary: false,
-                    toolbarHeight: 48,
-                    title: const Text('My Todos'),
-                    leading: IconButton(
-                      icon: Icon(
-                        Icons.auto_awesome_outlined,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      tooltip: 'Planning Wizard',
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PlanningWizardScreen(),
+        // Header is handled by the parent screen; keep list content only here.
+        if (_selectionMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Cancel selection',
+                  onPressed: () => setState(() {
+                    _selectionMode = false;
+                    _selectedIds.clear();
+                  }),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    '${_selectedIds.length} selected',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
-                      ),
-                    ),
-                    actions: const [
-                      _PomodoroStatusWidget(),
-                    ],
                   ),
-          ),
-        ),
+                ),
+                IconButton(
+                  tooltip: 'Mark complete',
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  onPressed: () {
+                    taskProvider.completeAll(_selectedIds.toList());
+                    setState(() {
+                      _selectionMode = false;
+                      _selectedIds.clear();
+                    });
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: () {
+                    taskProvider.deleteAll(_selectedIds.toList());
+                    setState(() {
+                      _selectionMode = false;
+                      _selectedIds.clear();
+                    });
+                  },
+                ),
+              ],
+            ),
+          )
+        else
+          const SizedBox(height: 6),
         Expanded(
           child: Column(
             children: [
-          // Smart Filters
-          Container(
-            height: 50,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: TaskFilter.values
-                  .map(
-                    (f) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ContrastChoiceChip(
-                        label:
-                            f.name[0].toUpperCase() + f.name.substring(1),
-                        selected: taskProvider.selectedFilter == f,
-                        onSelected: (v) {
-                          if (v) taskProvider.selectFilter(f);
-                        },
+          // Filters (Time + Priority)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Builder(
+              builder: (context) {
+                final theme = Theme.of(context);
+                final cs = theme.colorScheme;
+
+                Widget field({
+                  required IconData icon,
+                  required String label,
+                  required Widget dropdown,
+                }) {
+                  return Container(
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 18, color: cs.onSurfaceVariant),
+                        const SizedBox(width: 8),
+                        Expanded(child: dropdown),
+                      ],
+                    ),
+                  );
+                }
+
+                final timeDropdown = DropdownButtonHideUnderline(
+                  child: DropdownButton<TaskFilter>(
+                    value: taskProvider.selectedFilter,
+                    isExpanded: true,
+                    icon: const Icon(Icons.expand_more_rounded),
+                    borderRadius: BorderRadius.circular(14),
+                    dropdownColor: cs.surface,
+                    style: theme.textTheme.bodyMedium,
+                    items: const [
+                      DropdownMenuItem(value: TaskFilter.all, child: Text('All')),
+                      DropdownMenuItem(value: TaskFilter.today, child: Text('Today')),
+                      DropdownMenuItem(value: TaskFilter.week, child: Text('Week')),
+                      DropdownMenuItem(value: TaskFilter.upcoming, child: Text('Upcoming')),
+                      DropdownMenuItem(value: TaskFilter.overdue, child: Text('Overdue')),
+                      DropdownMenuItem(value: TaskFilter.suggested, child: Text('Suggested')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      taskProvider.selectFilter(v);
+                    },
+                  ),
+                );
+
+                final priorityDropdown = DropdownButtonHideUnderline(
+                  child: DropdownButton<TaskPriority?>(
+                    value: taskProvider.selectedPriority,
+                    isExpanded: true,
+                    icon: const Icon(Icons.expand_more_rounded),
+                    borderRadius: BorderRadius.circular(14),
+                    dropdownColor: cs.surface,
+                    style: theme.textTheme.bodyMedium,
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All')),
+                      ...TaskPriority.values.map(
+                        (p) => DropdownMenuItem(
+                          value: p,
+                          child: Text(
+                            p.name[0].toUpperCase() + p.name.substring(1),
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (p) => taskProvider.selectPriority(p),
+                  ),
+                );
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: field(
+                        icon: Icons.schedule_rounded,
+                        label: 'Time',
+                        dropdown: timeDropdown,
                       ),
                     ),
-                  )
-                  .toList(),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: field(
+                        icon: Icons.flag_outlined,
+                        label: 'Priority',
+                        dropdown: priorityDropdown,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
 
           // Category Selector
           Container(
-            height: 50,
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            height: 44,
+            padding: const EdgeInsets.symmetric(vertical: 2),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -517,47 +625,3 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-class _PomodoroStatusWidget extends StatelessWidget {
-  const _PomodoroStatusWidget();
-
-  @override
-  Widget build(BuildContext context) {
-    final pomodoro = Provider.of<PomodoroProvider>(context);
-    return GestureDetector(
-      onTap: () => pomodoro.toggleTimer(),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: pomodoro.isRunning 
-            ? (pomodoro.currentState == PomodoroState.focus ? Colors.blue.withOpacity(0.1) : Colors.green.withOpacity(0.1))
-            : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              pomodoro.isRunning ? Icons.timer : Icons.timer_outlined,
-              size: 16,
-              color: pomodoro.isRunning 
-                ? (pomodoro.currentState == PomodoroState.focus ? Colors.blue : Colors.green)
-                : Colors.grey,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              pomodoro.timerString,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'monospace',
-                color: pomodoro.isRunning 
-                  ? (pomodoro.currentState == PomodoroState.focus ? Colors.blue : Colors.green)
-                  : Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

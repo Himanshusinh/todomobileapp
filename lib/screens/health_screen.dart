@@ -11,283 +11,106 @@ class HealthScreen extends StatefulWidget {
   State<HealthScreen> createState() => _HealthScreenState();
 }
 
-class _HealthScreenState extends State<HealthScreen> {
-  late DateTime _day;
+class _HealthScreenState extends State<HealthScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabs;
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  /// Calendar day for health data (always “today”).
+  DateTime get _today {
     final n = DateTime.now();
-    _day = DateTime(n.year, n.month, n.day);
+    return DateTime(n.year, n.month, n.day);
   }
 
-  String get _key => HealthProvider.dateKey(_day);
-
-  void _shiftDay(int delta) {
-    setState(() {
-      _day = _day.add(Duration(days: delta));
-    });
-  }
+  String get _key => HealthProvider.dateKey(_today);
 
   static const _moodLabels = ['Rough', 'Low', 'Okay', 'Good', 'Great'];
-  static const _mealLabels = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
   @override
   Widget build(BuildContext context) {
     final h = context.watch<HealthProvider>();
-    final theme = Theme.of(context);
+    final cs = Theme.of(context).colorScheme;
 
-    final appBarBg =
-        theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Material(
-          color: appBarBg,
-          elevation: 0,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: AppBar(
-              primary: false,
-              toolbarHeight: 48,
-              automaticallyImplyLeading: false,
-              title: const Text('Health & Habits'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.today_outlined),
-                  tooltip: 'Today',
-                  onPressed: () {
-                    final n = DateTime.now();
-                    setState(() => _day = DateTime(n.year, n.month, n.day));
-                  },
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == 'habit') _promptHabit(context);
-                    if (v == 'workout') _promptWorkout(context);
-                    if (v == 'grocery') _promptGrocery(context);
-                    if (v == 'weight') _promptWeight(context);
-                    if (v == 'goal') _promptFitnessGoal(context);
-                  },
-                  itemBuilder: (ctx) => const [
-                    PopupMenuItem(value: 'habit', child: Text('New habit')),
-                    PopupMenuItem(value: 'workout', child: Text('Log workout')),
-                    PopupMenuItem(value: 'grocery', child: Text('Add grocery item')),
-                    PopupMenuItem(value: 'weight', child: Text('Log weight')),
-                    PopupMenuItem(value: 'goal', child: Text('Fitness goal')),
-                  ],
-                ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TabBar(
+              controller: _tabs,
+              tabs: const [
+                Tab(text: 'Today'),
+                Tab(text: 'Activity'),
               ],
             ),
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-          _DateStrip(day: _day, onPrev: () => _shiftDay(-1), onNext: () => _shiftDay(1)),
-          const SizedBox(height: 20),
-          Text('Daily habits', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(
-            'Tap to mark ${_key == h.todayKey ? 'today' : 'this day'}. Streak counts up to today.',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          if (h.habits.isEmpty)
-            const Text('No habits yet.')
-          else
-            ...h.habits.map((habit) => _HabitRow(
-                  habit: habit,
-                  dateKey: _key,
-                  streak: h.streakForHabit(habit.id, _day),
-                  done: h.isHabitDone(habit.id, _key),
-                  onToggle: () => h.toggleHabitDay(habit.id, _key),
-                  onDelete: () => _confirmDeleteHabit(context, habit),
-                )),
-          const SizedBox(height: 24),
-          Text('Mood', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          _MoodRow(
-            dateKey: _key,
-            current: h.moodFor(_key)?.moodLevel,
-            onPick: (level) => _moodNoteDialog(context, level),
-          ),
-          if (h.moodFor(_key)?.note.isNotEmpty == true)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(h.moodFor(_key)!.note, style: theme.textTheme.bodySmall),
-            ),
-          const SizedBox(height: 24),
-          Text('Water', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          _WaterCard(dateKey: _key, health: h),
-          const SizedBox(height: 24),
-          Text('Sleep', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          _SleepCard(dateKey: _key, health: h),
-          const SizedBox(height: 24),
-          Text('Meals', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          ...List.generate(
-            4,
-            (i) => _MealSlotRow(
-              key: ValueKey('${_key}_meal_$i'),
-              dateKey: _key,
-              mealType: i,
-              label: _mealLabels[i],
-              health: h,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Workouts',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              TextButton(
-                onPressed: () => _promptWorkout(context),
-                child: const Text('Log'),
-              ),
-            ],
-          ),
-          if (h.workouts.isEmpty)
-            Text('No workouts yet.', style: theme.textTheme.bodySmall)
-          else
-            ...h.workouts.take(12).map((w) => Card(
-                  child: ListTile(
-                    title: Text(w.title),
-                    subtitle: Text(
-                      '${DateFormat('MMM d').format(w.date)} · ${w.durationMinutes} min',
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => h.deleteWorkout(w.id),
-                    ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: [
+                  _TodayTab(
+                    dateKey: _key,
+                    day: _today,
+                    health: h,
+                    onMoodNote: (level) => _moodNoteDialog(context, level),
+                    onDeleteHabit: (habit) => _confirmDeleteHabit(context, habit),
                   ),
-                )),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Grocery list',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  h.clearCheckedGroceries();
-                },
-                child: const Text('Clear done'),
-              ),
-            ],
-          ),
-          if (h.groceryItems.isEmpty)
-            Text('Add items you need from the menu.', style: theme.textTheme.bodySmall)
-          else
-            ...h.groceryItems.map(
-              (g) => CheckboxListTile(
-                value: g.isChecked,
-                onChanged: (_) => h.toggleGrocery(g.id),
-                title: Text(
-                  g.title,
-                  style: TextStyle(
-                    decoration: g.isChecked ? TextDecoration.lineThrough : null,
-                    color: g.isChecked ? theme.hintColor : null,
+                  _ActivityTab(
+                    health: h,
+                    onPromptWorkout: () => _promptWorkout(context),
+                    onPromptGrocery: () => _promptGrocery(context),
+                    onPromptWeight: () => _promptWeight(context),
+                    onPromptGoal: () => _promptFitnessGoal(context),
                   ),
-                ),
-                secondary: IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => h.deleteGrocery(g.id),
-                ),
+                ],
               ),
             ),
-          const SizedBox(height: 24),
-          Text('Weight & fitness goals', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          if (h.latestWeightKg != null)
-            Text(
-              'Latest: ${h.latestWeightKg!.toStringAsFixed(1)} kg',
-              style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          Row(
-            children: [
-              TextButton.icon(
-                onPressed: () => _promptWeight(context),
-                icon: const Icon(Icons.monitor_weight_outlined),
-                label: const Text('Log weight'),
-              ),
-              TextButton.icon(
-                onPressed: () => _promptFitnessGoal(context),
-                icon: const Icon(Icons.flag_outlined),
-                label: const Text('Add goal'),
-              ),
-            ],
-          ),
-          if (h.fitnessGoals.isEmpty)
-            Text('Set a target weight to see progress.', style: theme.textTheme.bodySmall)
-          else
-            ...h.fitnessGoals.map((g) {
-              final current = h.latestWeightKg;
-              final p = g.progressToward(current);
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text(g.title, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => h.deleteFitnessGoal(g.id),
-                          ),
-                        ],
-                      ),
-                      Text('Target: ${g.targetWeightKg.toStringAsFixed(1)} kg'),
-                      if (g.startWeightKg != null)
-                        Text('Started: ${g.startWeightKg!.toStringAsFixed(1)} kg'),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(value: p, minHeight: 8),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        current != null
-                            ? 'Progress: ${(p * 100).toStringAsFixed(0)}%  (now ${current.toStringAsFixed(1)} kg)'
-                            : 'Log weight to track progress',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          if (h.weightEntries.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text('Recent weigh-ins', style: theme.textTheme.labelLarge),
-            ...h.weightEntries.take(5).map(
-                  (e) => ListTile(
-                    dense: true,
-                    title: Text('${e.weightKg.toStringAsFixed(1)} kg'),
-                    subtitle: Text(DateFormat('MMM d, y').format(e.date)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () => h.deleteWeight(e.id),
-                    ),
-                  ),
-                ),
           ],
-          const SizedBox(height: 24),
-            ],
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: SafeArea(
+            child: PopupMenuButton<String>(
+              tooltip: 'Add',
+              offset: const Offset(0, -8),
+              onSelected: (v) {
+                if (v == 'habit') _promptHabit(context);
+                if (v == 'workout') _promptWorkout(context);
+                if (v == 'grocery') _promptGrocery(context);
+                if (v == 'weight') _promptWeight(context);
+                if (v == 'goal') _promptFitnessGoal(context);
+              },
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(value: 'habit', child: Text('Habit')),
+                PopupMenuItem(value: 'workout', child: Text('Workout')),
+                PopupMenuItem(value: 'grocery', child: Text('Grocery item')),
+                PopupMenuItem(value: 'weight', child: Text('Weight')),
+                PopupMenuItem(value: 'goal', child: Text('Fitness goal')),
+              ],
+              child: Material(
+                color: cs.primary,
+                elevation: 3,
+                shadowColor: Colors.black26,
+                shape: const CircleBorder(),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: Icon(Icons.add_rounded, color: cs.onPrimary, size: 28),
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -300,18 +123,23 @@ class _HealthScreenState extends State<HealthScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Mood: ${_moodLabels[level]}'),
+        title: Text('Mood · ${_moodLabels[level]}'),
         content: TextField(
           controller: note,
           decoration: const InputDecoration(
             labelText: 'Note (optional)',
-            border: OutlineInputBorder(),
           ),
           maxLines: 2,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -335,12 +163,13 @@ class _HealthScreenState extends State<HealthScreen> {
               children: [
                 TextField(
                   controller: title,
-                  decoration: const InputDecoration(labelText: 'Name', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Name'),
                   autofocus: true,
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
+                  runSpacing: 8,
                   children: [
                     (0xFF2196F3, Colors.blue),
                     (0xFF4CAF50, Colors.green),
@@ -355,8 +184,10 @@ class _HealthScreenState extends State<HealthScreen> {
                       onTap: () => setSt(() => color = argb),
                       child: CircleAvatar(
                         backgroundColor: c,
-                        radius: 18,
-                        child: sel ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
+                        radius: 16,
+                        child: sel
+                            ? const Icon(Icons.check, color: Colors.white, size: 18)
+                            : null,
                       ),
                     );
                   }).toList(),
@@ -364,7 +195,10 @@ class _HealthScreenState extends State<HealthScreen> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: () {
                   if (title.text.trim().isNotEmpty) {
@@ -386,7 +220,7 @@ class _HealthScreenState extends State<HealthScreen> {
     final title = TextEditingController();
     final dur = TextEditingController(text: '30');
     final notes = TextEditingController();
-    DateTime d = _day;
+    DateTime d = _today;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -403,16 +237,27 @@ class _HealthScreenState extends State<HealthScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Log workout', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextField(controller: title, decoration: const InputDecoration(labelText: 'What did you do?')),
+              Text(
+                'Log workout',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: title,
+                decoration: const InputDecoration(labelText: 'What did you do?'),
+              ),
               TextField(
                 controller: dur,
                 decoration: const InputDecoration(labelText: 'Minutes'),
                 keyboardType: TextInputType.number,
               ),
               ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
                 title: Text(DateFormat('MMM d, y').format(d)),
-                trailing: const Icon(Icons.calendar_today),
+                trailing: const Icon(Icons.calendar_today_outlined, size: 20),
                 onTap: () async {
                   final picked = await showDatePicker(
                     context: ctx,
@@ -423,7 +268,10 @@ class _HealthScreenState extends State<HealthScreen> {
                   if (picked != null) setSt(() => d = picked);
                 },
               ),
-              TextField(controller: notes, decoration: const InputDecoration(labelText: 'Notes')),
+              TextField(
+                controller: notes,
+                decoration: const InputDecoration(labelText: 'Notes'),
+              ),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () {
@@ -450,7 +298,7 @@ class _HealthScreenState extends State<HealthScreen> {
         title: const Text('Grocery item'),
         content: TextField(
           controller: t,
-          decoration: const InputDecoration(labelText: 'Item', border: OutlineInputBorder()),
+          decoration: const InputDecoration(labelText: 'Item'),
           autofocus: true,
         ),
         actions: [
@@ -489,14 +337,22 @@ class _HealthScreenState extends State<HealthScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Log weight', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                'Log weight',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: w,
-                decoration: const InputDecoration(labelText: 'kg', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'kg'),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 autofocus: true,
               ),
               ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
                 title: Text(DateFormat('MMM d, y').format(d)),
                 onTap: () async {
                   final picked = await showDatePicker(
@@ -535,15 +391,20 @@ class _HealthScreenState extends State<HealthScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: title, decoration: const InputDecoration(labelText: 'Title')),
+            TextField(
+              controller: title,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
             TextField(
               controller: target,
               decoration: const InputDecoration(labelText: 'Target weight (kg)'),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
             Text(
-              'Start weight defaults to your latest log if any.',
-              style: Theme.of(ctx).textTheme.bodySmall,
+              'Start weight uses your latest log if any.',
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),
@@ -584,43 +445,393 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 }
 
-class _DateStrip extends StatelessWidget {
-  final DateTime day;
-  final VoidCallback onPrev;
-  final VoidCallback onNext;
-
-  const _DateStrip({
+class _TodayTab extends StatelessWidget {
+  const _TodayTab({
+    required this.dateKey,
     required this.day,
-    required this.onPrev,
-    required this.onNext,
+    required this.health,
+    required this.onMoodNote,
+    required this.onDeleteHabit,
   });
+
+  final String dateKey;
+  final DateTime day;
+  final HealthProvider health;
+  final Future<void> Function(int level) onMoodNote;
+  final void Function(Habit habit) onDeleteHabit;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+      children: [
+        _SectionLabel(
+          icon: Icons.check_circle_outline_rounded,
+          label: 'Habits',
+          subtitle: 'Tap to complete today',
+        ),
+        const SizedBox(height: 6),
+        if (health.habits.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No habits — use + to add one.',
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          )
+        else
+          ...health.habits.map((habit) {
+            return _HabitRow(
+              habit: habit,
+              dateKey: dateKey,
+              streak: health.streakForHabit(habit.id, day),
+              done: health.isHabitDone(habit.id, dateKey),
+              onToggle: () => health.toggleHabitDay(habit.id, dateKey),
+              onDelete: () => onDeleteHabit(habit),
+            );
+          }),
+        const SizedBox(height: 14),
+        _SectionLabel(icon: Icons.mood_rounded, label: 'Mood'),
+        const SizedBox(height: 6),
+        _MoodRow(
+          current: health.moodFor(dateKey)?.moodLevel,
+          onPick: onMoodNote,
+        ),
+        if (health.moodFor(dateKey)?.note.isNotEmpty == true) ...[
+          const SizedBox(height: 6),
+          Text(
+            health.moodFor(dateKey)!.note,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              height: 1.25,
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        _SectionLabel(icon: Icons.water_drop_outlined, label: 'Water'),
+        const SizedBox(height: 6),
+        _WaterBlock(dateKey: dateKey, health: health),
+        const SizedBox(height: 14),
+        _SectionLabel(icon: Icons.bedtime_outlined, label: 'Sleep'),
+        const SizedBox(height: 6),
+        _SleepBlock(dateKey: dateKey, health: health),
+      ],
+    );
+  }
+}
+
+class _ActivityTab extends StatelessWidget {
+  const _ActivityTab({
+    required this.health,
+    required this.onPromptWorkout,
+    required this.onPromptGrocery,
+    required this.onPromptWeight,
+    required this.onPromptGoal,
+  });
+
+  final HealthProvider health;
+  final VoidCallback onPromptWorkout;
+  final VoidCallback onPromptGrocery;
+  final VoidCallback onPromptWeight;
+  final VoidCallback onPromptGoal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Workouts',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            TextButton(
+              onPressed: onPromptWorkout,
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+        if (health.workouts.isEmpty)
+          Text(
+            'No workouts logged.',
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          )
+        else
+          ...health.workouts.take(20).map(
+                (w) => _PlainRow(
+                  title: w.title,
+                  subtitle: '${DateFormat('MMM d').format(w.date)} · ${w.durationMinutes} min',
+                  trailing: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                    onPressed: () => health.deleteWorkout(w.id),
+                  ),
+                ),
+              ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Grocery',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            TextButton(
+              onPressed: onPromptGrocery,
+              child: const Text('Add'),
+            ),
+            TextButton(
+              onPressed: health.clearCheckedGroceries,
+              child: const Text('Clear done'),
+            ),
+          ],
+        ),
+        if (health.groceryItems.isEmpty)
+          Text(
+            'Nothing on the list.',
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          )
+        else
+          ...health.groceryItems.map(
+            (g) => CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              value: g.isChecked,
+              onChanged: (_) => health.toggleGrocery(g.id),
+              title: Text(
+                g.title,
+                style: TextStyle(
+                  decoration: g.isChecked ? TextDecoration.lineThrough : null,
+                  color: g.isChecked ? cs.onSurfaceVariant : null,
+                ),
+              ),
+              secondary: IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: () => health.deleteGrocery(g.id),
+              ),
+            ),
+          ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Weight & goals',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            TextButton(onPressed: onPromptWeight, child: const Text('Weight')),
+            TextButton(onPressed: onPromptGoal, child: const Text('Goal')),
+          ],
+        ),
+        if (health.latestWeightKg != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Latest: ${health.latestWeightKg!.toStringAsFixed(1)} kg',
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+        if (health.fitnessGoals.isEmpty)
+          Text(
+            'Add a goal to track progress.',
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          )
+        else
+          ...health.fitnessGoals.map((g) {
+            final current = health.latestWeightKg;
+            final p = g.progressToward(current);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                color: cs.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              g.title,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                            onPressed: () => health.deleteFitnessGoal(g.id),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Target ${g.targetWeightKg.toStringAsFixed(1)} kg',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                      if (g.startWeightKg != null)
+                        Text(
+                          'Started ${g.startWeightKg!.toStringAsFixed(1)} kg',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: p,
+                          minHeight: 6,
+                          backgroundColor: cs.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        current != null
+                            ? '${(p * 100).toStringAsFixed(0)}% · now ${current.toStringAsFixed(1)} kg'
+                            : 'Log weight to track',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        if (health.weightEntries.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Recent weigh-ins',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          ...health.weightEntries.take(5).map(
+                (e) => _PlainRow(
+                  title: '${e.weightKg.toStringAsFixed(1)} kg',
+                  subtitle: DateFormat('MMM d, y').format(e.date),
+                  trailing: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                    onPressed: () => health.deleteWeight(e.id),
+                  ),
+                ),
+              ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Row(
       children: [
-        IconButton(onPressed: onPrev, icon: const Icon(Icons.chevron_left)),
-        Expanded(
-          child: Text(
-            DateFormat('EEEE, MMM d').format(day),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        Icon(icon, size: 18, color: cs.primary.withValues(alpha: 0.9)),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              subtitle!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PlainRow extends StatelessWidget {
+  const _PlainRow({
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ? trailing,
+            ],
           ),
         ),
-        IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
+        Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.28)),
       ],
     );
   }
 }
 
 class _HabitRow extends StatelessWidget {
-  final Habit habit;
-  final String dateKey;
-  final int streak;
-  final bool done;
-  final VoidCallback onToggle;
-  final VoidCallback onDelete;
-
   const _HabitRow({
     required this.habit,
     required this.dateKey,
@@ -630,81 +841,136 @@ class _HabitRow extends StatelessWidget {
     required this.onDelete,
   });
 
+  final Habit habit;
+  final String dateKey;
+  final int streak;
+  final bool done;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final color = Color(habit.colorValue);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.2),
-          child: Icon(Icons.check, color: color),
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done
+                          ? color.withValues(alpha: 0.35)
+                          : cs.surfaceContainerHighest.withValues(alpha: 0.6),
+                      border: Border.all(
+                        color: done ? color : cs.outlineVariant.withValues(alpha: 0.4),
+                        width: 1.25,
+                      ),
+                    ),
+                    child: Icon(
+                      done ? Icons.check_rounded : null,
+                      size: 16,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          habit.title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '$streak-day streak',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Delete',
+                    onPressed: onDelete,
+                    icon: Icon(Icons.delete_outline_rounded, size: 20, color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        title: Text(habit.title),
-        subtitle: Text('Streak: $streak day${streak == 1 ? '' : 's'}'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(icon: const Icon(Icons.delete_outline), onPressed: onDelete),
-            Checkbox(value: done, onChanged: (_) => onToggle()),
-          ],
-        ),
-        onTap: onToggle,
-      ),
+        Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.28)),
+      ],
     );
   }
 }
 
 class _MoodRow extends StatelessWidget {
-  final String dateKey;
-  final int? current;
-  final ValueChanged<int> onPick;
-
   const _MoodRow({
-    required this.dateKey,
     required this.current,
     required this.onPick,
   });
 
+  final int? current;
+  final Future<void> Function(int level) onPick;
+
+  static const _icons = [
+    Icons.sentiment_very_dissatisfied_rounded,
+    Icons.sentiment_dissatisfied_rounded,
+    Icons.sentiment_neutral_rounded,
+    Icons.sentiment_satisfied_rounded,
+    Icons.sentiment_very_satisfied_rounded,
+  ];
+
+  static const _colors = [
+    Color(0xFFE57373),
+    Color(0xFFFFB74D),
+    Color(0xFF90A4AE),
+    Color(0xFF81C784),
+    Color(0xFF4CAF50),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    const moodIcons = [
-      Icons.sentiment_very_dissatisfied_rounded,
-      Icons.sentiment_dissatisfied_rounded,
-      Icons.sentiment_neutral_rounded,
-      Icons.sentiment_satisfied_rounded,
-      Icons.sentiment_very_satisfied_rounded,
-    ];
-    const moodColors = [
-      Color(0xFFE57373),
-      Color(0xFFFFB74D),
-      Color(0xFF90A4AE),
-      Color(0xFF81C784),
-      Color(0xFF4CAF50),
-    ];
-    return Wrap(
-      alignment: WrapAlignment.spaceEvenly,
-      spacing: 8,
-      runSpacing: 8,
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: List.generate(5, (i) {
         final sel = current == i;
-        return InkWell(
-          onTap: () => onPick(i),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: sel ? Theme.of(context).colorScheme.primaryContainer : null,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: sel ? Theme.of(context).colorScheme.primary : Colors.transparent,
-                width: 2,
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Material(
+              color: sel ? cs.primaryContainer.withValues(alpha: 0.45) : cs.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => onPick(i),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Icon(
+                    _icons[i],
+                    size: 26,
+                    color: sel ? cs.primary : _colors[i],
+                  ),
+                ),
               ),
-            ),
-            child: Icon(
-              moodIcons[i],
-              size: 30,
-              color: sel ? Theme.of(context).colorScheme.primary : moodColors[i],
             ),
           ),
         );
@@ -713,17 +979,17 @@ class _MoodRow extends StatelessWidget {
   }
 }
 
-class _SleepCard extends StatefulWidget {
+class _SleepBlock extends StatefulWidget {
+  const _SleepBlock({required this.dateKey, required this.health});
+
   final String dateKey;
   final HealthProvider health;
 
-  const _SleepCard({required this.dateKey, required this.health});
-
   @override
-  State<_SleepCard> createState() => _SleepCardState();
+  State<_SleepBlock> createState() => _SleepBlockState();
 }
 
-class _SleepCardState extends State<_SleepCard> {
+class _SleepBlockState extends State<_SleepBlock> {
   late TextEditingController _hours;
   late int? _quality;
 
@@ -738,7 +1004,7 @@ class _SleepCardState extends State<_SleepCard> {
   }
 
   @override
-  void didUpdateWidget(covariant _SleepCard oldWidget) {
+  void didUpdateWidget(covariant _SleepBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.dateKey != widget.dateKey) {
       _hours.dispose();
@@ -758,38 +1024,50 @@ class _SleepCardState extends State<_SleepCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Material(
+      color: cs.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               controller: _hours,
               decoration: const InputDecoration(
-                labelText: 'Hours slept',
-                border: OutlineInputBorder(),
+                labelText: 'Hours',
                 hintText: 'e.g. 7.5',
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
-            const SizedBox(height: 8),
-            Text('Sleep quality (optional)', style: Theme.of(context).textTheme.labelMedium),
-            Row(
+            const SizedBox(height: 6),
+            Text(
+              'Quality (optional)',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: List.generate(5, (i) {
                 final v = i + 1;
                 final sel = _quality == v;
-                return Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: ChoiceChip(
-                    label: Text('$v'),
-                    selected: sel,
-                    onSelected: (_) => setState(() => _quality = sel ? null : v),
-                  ),
+                return FilterChip(
+                  label: Text('$v'),
+                  selected: sel,
+                  showCheckmark: false,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) => setState(() => _quality = sel ? null : v),
                 );
               }),
             ),
-            FilledButton(
+            const SizedBox(height: 8),
+            FilledButton.tonal(
               onPressed: () {
                 final h = double.tryParse(_hours.text.replaceAll(',', '')) ?? 0;
                 if (h <= 0 || h > 24) return;
@@ -804,58 +1082,60 @@ class _SleepCardState extends State<_SleepCard> {
   }
 }
 
-class _WaterCard extends StatelessWidget {
+class _WaterBlock extends StatelessWidget {
+  const _WaterBlock({required this.dateKey, required this.health});
+
   final String dateKey;
   final HealthProvider health;
 
-  const _WaterCard({required this.dateKey, required this.health});
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final total = health.waterTotalMl(dateKey);
     final goal = HealthProvider.defaultWaterGoalMl;
     final p = goal > 0 ? (total / goal).clamp(0.0, 1.0) : 0.0;
 
-    return Card(
+    return Material(
+      color: cs.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$total / $goal ml'),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(value: p, minHeight: 10),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            Row(
               children: [
-                FilledButton.tonal(
-                  onPressed: () => health.addWaterMl(dateKey, HealthProvider.waterGlassMl),
-                  child: Text('+${HealthProvider.waterGlassMl} ml (glass)'),
+                Text(
+                  '$total',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                 ),
-                OutlinedButton(
-                  onPressed: () => health.addWaterMl(dateKey, 500),
-                  child: const Text('+500 ml'),
+                Text(
+                  ' / $goal ml',
+                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
-                OutlinedButton(
+                const Spacer(),
+                TextButton(
                   onPressed: () async {
                     final c = TextEditingController(text: total.toString());
                     final ok = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: const Text('Set total ml'),
+                        title: const Text('Set total (ml)'),
                         content: TextField(
                           controller: c,
                           keyboardType: TextInputType.number,
                           autofocus: true,
                         ),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Set')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Set'),
+                          ),
                         ],
                       ),
                     );
@@ -864,7 +1144,33 @@ class _WaterCard extends StatelessWidget {
                       health.setWaterMl(dateKey, v);
                     }
                   },
-                  child: const Text('Set total'),
+                  child: const Text('Set'),
+                ),
+              ],
+            ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: p,
+                minHeight: 6,
+                backgroundColor: cs.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: () => health.addWaterMl(dateKey, HealthProvider.waterGlassMl),
+                    child: Text('+${HealthProvider.waterGlassMl} ml'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => health.addWaterMl(dateKey, 500),
+                    child: const Text('+500 ml'),
+                  ),
                 ),
               ],
             ),
@@ -872,89 +1178,5 @@ class _WaterCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _MealSlotRow extends StatefulWidget {
-  final String dateKey;
-  final int mealType;
-  final String label;
-  final HealthProvider health;
-
-  const _MealSlotRow({
-    super.key,
-    required this.dateKey,
-    required this.mealType,
-    required this.label,
-    required this.health,
-  });
-
-  @override
-  State<_MealSlotRow> createState() => _MealSlotRowState();
-}
-
-class _MealSlotRowState extends State<_MealSlotRow> {
-  late TextEditingController _c;
-
-  String _initialText() {
-    final meals = widget.health.mealsFor(widget.dateKey).where((m) => m.mealType == widget.mealType);
-    return meals.isEmpty ? '' : meals.first.description;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _c = TextEditingController(text: _initialText());
-  }
-
-  @override
-  void didUpdateWidget(covariant _MealSlotRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.dateKey != widget.dateKey) {
-      _c.dispose();
-      _c = TextEditingController(text: _initialText());
-    }
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 88,
-            child: Text(widget.label, style: Theme.of(context).textTheme.labelLarge),
-          ),
-          Expanded(
-            child: TextField(
-              controller: _c,
-              decoration: const InputDecoration(
-                hintText: 'Plan…',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              onSubmitted: (_) => _save(),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _save,
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _save() {
-    widget.health.setMeal(widget.dateKey, widget.mealType, _c.text);
-    FocusScope.of(context).unfocus();
   }
 }

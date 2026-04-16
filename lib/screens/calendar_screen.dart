@@ -8,7 +8,6 @@ import 'package:todoapp/providers/finance_provider.dart';
 import 'package:todoapp/providers/goals_provider.dart';
 import 'package:todoapp/providers/health_provider.dart';
 import 'package:todoapp/providers/notes_provider.dart';
-import 'package:todoapp/providers/shopping_provider.dart';
 import 'package:todoapp/providers/task_provider.dart';
 import 'package:todoapp/widgets/task_tile.dart';
 
@@ -18,7 +17,6 @@ enum CalendarDataLayer {
   finance,
   health,
   goals,
-  shopping,
   notes,
 }
 
@@ -28,7 +26,6 @@ extension on CalendarDataLayer {
         CalendarDataLayer.finance => 'Finance',
         CalendarDataLayer.health => 'Health',
         CalendarDataLayer.goals => 'Goals',
-        CalendarDataLayer.shopping => 'Shop',
         CalendarDataLayer.notes => 'Journal',
       };
 
@@ -37,7 +34,6 @@ extension on CalendarDataLayer {
         CalendarDataLayer.finance => 'Tap a day for bills, subs & task spend.',
         CalendarDataLayer.health => 'Tap a day for habits, mood & workouts.',
         CalendarDataLayer.goals => 'Tap a day for milestones & focus goals.',
-        CalendarDataLayer.shopping => 'Current shopping snapshot (not dated).',
         CalendarDataLayer.notes => 'Tap a day for journal entries.',
       };
 }
@@ -87,7 +83,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
       CalendarDataLayer.finance => cs.tertiary,
       CalendarDataLayer.health => const Color(0xFF2E7D32),
       CalendarDataLayer.goals => cs.secondary,
-      CalendarDataLayer.shopping => const Color(0xFF00838F),
       CalendarDataLayer.notes => cs.tertiary,
     };
   }
@@ -209,8 +204,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         );
         if (!hasMilestone) return [];
         return [const CalendarMarker()];
-      case CalendarDataLayer.shopping:
-        return [];
       case CalendarDataLayer.notes:
         if (notes.journalForDay(NotesProvider.dateKey(day)).isEmpty) {
           return [];
@@ -345,8 +338,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ).length;
         }
         line = '$n open milestones due · $title';
-      case CalendarDataLayer.shopping:
-        line = 'Shopping lists are not tied to dates — see details below.';
       case CalendarDataLayer.notes:
         var days = 0;
         for (final d in _eachDay(start, end)) {
@@ -388,7 +379,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     FinanceProvider finance,
     HealthProvider health,
     GoalsProvider goals,
-    ShoppingProvider shop,
     NotesProvider notes,
   ) {
     final theme = Theme.of(context);
@@ -714,54 +704,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ],
         );
 
-      case CalendarDataLayer.shopping:
-        final items = shop.shoppingItems();
-        final unchecked = items.where((e) => !e.isChecked).length;
-        final inv = shop.inventoryItems();
-        final wish = shop.wishlistItems();
-        return ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            dateHeader(),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Shopping list',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text('${items.length} items · $unchecked left to buy'),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Inventory: ${inv.length} items',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      Text(
-                        'Wishlist: ${wish.length} items',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Lists are not tied to calendar dates — this is your live snapshot.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-
       case CalendarDataLayer.notes:
         final entries = notes.journalForDay(journalKey);
         return ListView(
@@ -812,7 +754,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final finance = context.watch<FinanceProvider>();
     final health = context.watch<HealthProvider>();
     final goals = context.watch<GoalsProvider>();
-    final shop = context.watch<ShoppingProvider>();
     final notes = context.watch<NotesProvider>();
 
     final dayStyle = TextStyle(
@@ -1000,7 +941,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   finance,
                   health,
                   goals,
-                  shop,
                   notes,
                 ),
               ),

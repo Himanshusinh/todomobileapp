@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:todoapp/models/password_vault_item.dart';
 import 'package:todoapp/providers/password_vault_provider.dart';
+import 'package:todoapp/services/android_autofill_settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void _disposeControllersAfterDialog(List<TextEditingController> controllers) {
@@ -22,6 +23,71 @@ class PasswordsScreen extends StatefulWidget {
 
 class _PasswordsScreenState extends State<PasswordsScreen> {
   final _searchC = TextEditingController();
+  bool _checkedAutofill = false;
+  bool _autofillEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAutofill());
+  }
+
+  Future<void> _checkAutofill() async {
+    if (!AndroidAutofillSettings.isSupported) {
+      if (mounted) {
+        setState(() {
+          _checkedAutofill = true;
+          _autofillEnabled = true;
+        });
+      }
+      return;
+    }
+    final enabled = await AndroidAutofillSettings.isAutofillEnabledForApp();
+    if (!mounted) return;
+    setState(() {
+      _checkedAutofill = true;
+      _autofillEnabled = enabled;
+    });
+    if (!enabled) {
+      _showEnableAutofillDialog();
+    }
+  }
+
+  Future<void> _showEnableAutofillDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enable Autofill'),
+        content: const Text(
+          'To autofill logins in other apps and websites, enable TodoApp as your Autofill service in system settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await AndroidAutofillSettings.openAutofillSettings();
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not open settings: $e')),
+                );
+              }
+              // Re-check when the user returns.
+              await Future<void>.delayed(const Duration(milliseconds: 400));
+              await _checkAutofill();
+            },
+            child: const Text('Open settings'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -39,6 +105,48 @@ class _PasswordsScreenState extends State<PasswordsScreen> {
         content: Text('$label copied'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _autofillBanner() {
+    if (!_checkedAutofill || _autofillEnabled) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Material(
+        color: cs.tertiaryContainer.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(Icons.auto_fix_high_rounded, color: cs.onTertiaryContainer),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Autofill is off. Enable it to use Vault in other apps.',
+                  style: TextStyle(color: cs.onTertiaryContainer),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await AndroidAutofillSettings.openAutofillSettings();
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not open settings: $e')),
+                    );
+                  }
+                  await Future<void>.delayed(const Duration(milliseconds: 400));
+                  await _checkAutofill();
+                },
+                child: const Text('Enable'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -77,95 +185,174 @@ class _PasswordsScreenState extends State<PasswordsScreen> {
       return;
     }
 
-    final ok = await showDialog<bool>(
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final ok = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(isEdit ? 'Edit login' : 'Save password'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: siteC,
-                  decoration: const InputDecoration(
-                    labelText: 'Website / app name',
-                    prefixIcon: Icon(Icons.language),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                TextField(
-                  controller: urlC,
-                  decoration: const InputDecoration(
-                    labelText: 'URL (optional)',
-                    prefixIcon: Icon(Icons.link),
-                  ),
-                  keyboardType: TextInputType.url,
-                ),
-                TextField(
-                  controller: userC,
-                  decoration: const InputDecoration(
-                    labelText: 'Email or username',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                TextField(
-                  controller: passC,
-                  obscureText: obscure,
-                  decoration: InputDecoration(
-                    labelText: isEdit
-                        ? 'New password (blank = keep current)'
-                        : 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        obscure ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () => setLocal(() => obscure = !obscure),
+        builder: (ctx, setLocal) {
+          final maxH = MediaQuery.sizeOf(ctx).height * 0.75;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              top: 6,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxH),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 2),
+                  Text(
+                    isEdit ? 'Edit login' : 'Add login',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
                     ),
                   ),
-                ),
-                if (isEdit && existingPwd != null && existingPwd.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () async {
-                      await _copy('Password', existingPwd!);
-                    },
-                    icon: const Icon(Icons.copy, size: 18),
-                    label: const Text('Copy current password'),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: siteC,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Website / app name',
+                              prefixIcon:
+                                  const Icon(Icons.language_rounded, size: 20),
+                              filled: true,
+                              fillColor: cs.surfaceContainerHighest
+                                  .withValues(alpha: 0.55),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: urlC,
+                            decoration: InputDecoration(
+                              labelText: 'URL (optional)',
+                              prefixIcon:
+                                  const Icon(Icons.link_rounded, size: 20),
+                              filled: true,
+                              fillColor: cs.surfaceContainerHighest
+                                  .withValues(alpha: 0.55),
+                            ),
+                            keyboardType: TextInputType.url,
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: userC,
+                            decoration: InputDecoration(
+                              labelText: 'Email or username',
+                              prefixIcon:
+                                  const Icon(Icons.person_outline_rounded,
+                                      size: 20),
+                              filled: true,
+                              fillColor: cs.surfaceContainerHighest
+                                  .withValues(alpha: 0.55),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: passC,
+                            obscureText: obscure,
+                            decoration: InputDecoration(
+                              labelText: isEdit
+                                  ? 'New password (blank = keep current)'
+                                  : 'Password',
+                              prefixIcon:
+                                  const Icon(Icons.lock_outline_rounded,
+                                      size: 20),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  obscure
+                                      ? Icons.visibility_rounded
+                                      : Icons.visibility_off_rounded,
+                                ),
+                                onPressed: () =>
+                                    setLocal(() => obscure = !obscure),
+                              ),
+                              filled: true,
+                              fillColor: cs.surfaceContainerHighest
+                                  .withValues(alpha: 0.55),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          if (isEdit &&
+                              existingPwd != null &&
+                              existingPwd.isNotEmpty)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () async =>
+                                    await _copy('Password', existingPwd!),
+                                icon: const Icon(Icons.copy_rounded, size: 18),
+                                label: const Text('Copy current password'),
+                              ),
+                            ),
+                          if (isEdit)
+                            CheckboxListTile(
+                              value: removePassword,
+                              onChanged: (v) =>
+                                  setLocal(() => removePassword = v ?? false),
+                              controlAffinity:
+                                  ListTileControlAffinity.leading,
+                              title: const Text('Remove saved password'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: notesC,
+                            decoration: InputDecoration(
+                              labelText: 'Notes',
+                              prefixIcon:
+                                  const Icon(Icons.notes_rounded, size: 20),
+                              filled: true,
+                              fillColor: cs.surfaceContainerHighest
+                                  .withValues(alpha: 0.55),
+                            ),
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
                   ),
-                if (isEdit)
-                  CheckboxListTile(
-                    value: removePassword,
-                    onChanged: (v) =>
-                        setLocal(() => removePassword = v ?? false),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('Remove saved password'),
-                    contentPadding: EdgeInsets.zero,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: Text(isEdit ? 'Save' : 'Add'),
+                        ),
+                      ),
+                    ],
                   ),
-                TextField(
-                  controller: notesC,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes',
-                    prefixIcon: Icon(Icons.notes),
-                  ),
-                  maxLines: 2,
-                ),
-              ],
+                  const SizedBox(height: 6),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(isEdit ? 'Save' : 'Add'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
 
@@ -268,8 +455,6 @@ class _PasswordsScreenState extends State<PasswordsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final appBarBg =
-        theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -277,73 +462,57 @@ class _PasswordsScreenState extends State<PasswordsScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Material(
-              color: appBarBg,
-              elevation: 0,
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Password vault',
-                              style: theme.appBarTheme.titleTextStyle,
-                            ),
-                          ),
-                          IconButton.filledTonal(
-                            tooltip: 'Security info',
-                            onPressed: () => showDialog<void>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('How your data is stored'),
-                                content: const Text(
-                                  'Site names, URLs, and usernames are saved on device. '
-                                  'Passwords are stored in encrypted storage (Android Keystore / '
-                                  'iOS Keychain). Use a strong device lock screen.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('OK'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            icon: const Icon(Icons.shield_outlined),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchC,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Search sites…',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.6),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton.filledTonal(
+                    tooltip: 'Security info',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('How your data is stored'),
+                        content: const Text(
+                          'Site names, URLs, and usernames are saved on device. '
+                          'Passwords are stored in encrypted storage (Android Keystore / '
+                          'iOS Keychain). Use a strong device lock screen.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('OK'),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _searchC,
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          hintText: 'Search sites…',
-                          prefixIcon: const Icon(Icons.search),
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.6),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                    icon: const Icon(Icons.shield_outlined),
                   ),
-                ),
+                ],
               ),
             ),
+            _autofillBanner(),
             Expanded(
               child: Consumer<PasswordVaultProvider>(
                 builder: (context, p, _) {
@@ -364,7 +533,7 @@ class _PasswordsScreenState extends State<PasswordsScreen> {
                             const SizedBox(height: 16),
                             Text(
                               p.entries.isEmpty
-                                  ? 'Save logins by site.\nPasswords are encrypted on device.'
+                                  ? 'Vault is empty.\nTap Add login below to store sites, usernames, and encrypted passwords on this device.'
                                   : 'No matches.',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyLarge?.copyWith(

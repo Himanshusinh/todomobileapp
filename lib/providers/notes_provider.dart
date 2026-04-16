@@ -8,13 +8,26 @@ import 'package:todoapp/models/brainstorm_idea.dart';
 import 'package:todoapp/models/journal_entry.dart';
 import 'package:todoapp/models/quick_capture.dart';
 import 'package:todoapp/models/task_attachment.dart';
+import 'package:todoapp/services/hive_user_boxes.dart';
 import 'package:uuid/uuid.dart';
 
 class NotesProvider extends ChangeNotifier {
-  final Box<TaskAttachment> _attachBox = Hive.box<TaskAttachment>('task_attachments');
-  final Box<JournalEntry> _journalBox = Hive.box<JournalEntry>('journal');
-  final Box<BrainstormIdea> _ideaBox = Hive.box<BrainstormIdea>('brainstorm');
-  final Box<QuickCapture> _captureBox = Hive.box<QuickCapture>('quick_captures');
+  NotesProvider({required String userId})
+      : _attachBox = Hive.box<TaskAttachment>(
+          HiveUserBoxes.name('task_attachments', userId),
+        ),
+        _journalBox =
+            Hive.box<JournalEntry>(HiveUserBoxes.name('journal', userId)),
+        _ideaBox =
+            Hive.box<BrainstormIdea>(HiveUserBoxes.name('brainstorm', userId)),
+        _captureBox = Hive.box<QuickCapture>(
+          HiveUserBoxes.name('quick_captures', userId),
+        );
+
+  final Box<TaskAttachment> _attachBox;
+  final Box<JournalEntry> _journalBox;
+  final Box<BrainstormIdea> _ideaBox;
+  final Box<QuickCapture> _captureBox;
   final _uuid = const Uuid();
 
   static Future<void> ensureStorageDirs() async {

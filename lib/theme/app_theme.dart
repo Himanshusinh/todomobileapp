@@ -96,7 +96,8 @@ abstract final class LuxuryAppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
-      visualDensity: VisualDensity.standard,
+      // Slightly tighter defaults to fit better on phones.
+      visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
       splashFactory: InkRipple.splashFactory,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
@@ -151,7 +152,7 @@ abstract final class LuxuryAppTheme {
         iconTheme: IconThemeData(color: onSurface),
         actionsIconTheme: IconThemeData(color: onSurface),
         titleTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 18,
+          fontSize: 17,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.3,
           color: onSurface,
@@ -170,7 +171,7 @@ abstract final class LuxuryAppTheme {
           return IconThemeData(color: onSurfaceVariant, size: 24);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          final base = GoogleFonts.plusJakartaSans(fontSize: 12);
+          final base = GoogleFonts.plusJakartaSans(fontSize: 11.5);
           if (states.contains(WidgetState.selected)) {
             return base.copyWith(
               color: orange,
@@ -197,24 +198,24 @@ abstract final class LuxuryAppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w700,
-            fontSize: 15,
+            fontSize: 14.5,
             letterSpacing: 0.2,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.6)),
+          side: BorderSide.none,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -228,13 +229,13 @@ abstract final class LuxuryAppTheme {
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.35)),
+        side: BorderSide.none,
         labelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 13,
+          fontSize: 12.5,
           fontWeight: FontWeight.w600,
         ),
-        secondaryLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+        secondaryLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 12.5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
         backgroundColor: colorScheme.surfaceContainerLow,
         selectedColor: orange.withValues(alpha: isDark ? 0.2 : 0.09),
         disabledColor: colorScheme.surfaceContainerHighest,
@@ -246,12 +247,10 @@ abstract final class LuxuryAppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.65),
-          ),
+          side: BorderSide.none,
         ),
         color: isDark ? colorScheme.surfaceContainerHigh : canvasLightElevated,
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
         clipBehavior: Clip.antiAlias,
       ),
       dialogTheme: DialogThemeData(
@@ -293,20 +292,18 @@ abstract final class LuxuryAppTheme {
         filled: true,
         fillColor: colorScheme.surfaceContainerLow,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: colorScheme.outline.withValues(alpha: 0.35),
-          ),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: orange, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: orange.withValues(alpha: 0.55), width: 1.25),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         hintStyle: TextStyle(color: onSurfaceVariant.withValues(alpha: 0.75)),
       ),
       dividerTheme: DividerThemeData(
@@ -316,7 +313,7 @@ abstract final class LuxuryAppTheme {
       ),
       listTileTheme: ListTileThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: orange,
@@ -357,11 +354,11 @@ abstract final class LuxuryAppTheme {
         dividerColor: Colors.transparent,
         labelStyle: GoogleFonts.plusJakartaSans(
           fontWeight: FontWeight.w700,
-          fontSize: 14,
+          fontSize: 13,
         ),
         unselectedLabelStyle: GoogleFonts.plusJakartaSans(
           fontWeight: FontWeight.w600,
-          fontSize: 14,
+          fontSize: 13,
         ),
       ),
       badgeTheme: BadgeThemeData(

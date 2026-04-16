@@ -9,6 +9,7 @@ import 'package:todoapp/providers/finance_provider.dart';
 import 'package:todoapp/providers/task_provider.dart';
 import 'package:todoapp/screens/task_form_screen.dart';
 
+/// Finance: tabs (Overview / Subscriptions / Goals), compact lists, quick add sheets.
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
 
@@ -16,14 +17,28 @@ class FinanceScreen extends StatefulWidget {
   State<FinanceScreen> createState() => _FinanceScreenState();
 }
 
-class _FinanceScreenState extends State<FinanceScreen> {
+class _FinanceScreenState extends State<FinanceScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabs;
   late DateTime _viewMonth;
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 3, vsync: this);
+    _tabs.addListener(() {
+      if (!mounted) return;
+      // Rebuild so the + button changes behavior per-tab.
+      setState(() {});
+    });
     final n = DateTime.now();
     _viewMonth = DateTime(n.year, n.month);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   void _shiftMonth(int delta) {
@@ -32,233 +47,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final finance = context.watch<FinanceProvider>();
-    final allTasks = context.watch<TaskProvider>().allTasks;
-    final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
-
-    final y = _viewMonth.year;
-    final m = _viewMonth.month;
-    final budget = finance.budgetForMonth(y, m);
-    final spentTasks = finance.spentFromTasksForMonth(y, m);
-    final limit = budget?.limitAmount ?? 0;
-    final progress = limit > 0 ? (spentTasks / limit).clamp(0.0, 1.0) : 0.0;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final weekAhead = today.add(const Duration(days: 7));
-
-    bool withinWeek(DateTime raw) {
-      final d = DateTime(raw.year, raw.month, raw.day);
-      return !d.isBefore(today) && !d.isAfter(weekAhead);
-    }
-
-    final upcomingBills = finance.bills.where((b) => withinWeek(b.nextDueDate)).toList();
-
-    final upcomingSubs =
-        finance.subscriptions.where((s) => withinWeek(s.nextRenewalDate)).toList();
-
-    final taskExpenses = allTasks
-        .where((t) => t.expenseAmount != null && t.expenseAmount! > 0)
-        .toList();
-
-    final appBarBg =
-        Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).colorScheme.surface;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Material(
-                color: appBarBg,
-                elevation: 0,
-                child: SafeArea(
-                  top: false,
-                  bottom: false,
-                  child: AppBar(
-                    primary: false,
-                    toolbarHeight: 48,
-                    automaticallyImplyLeading: false,
-                    title: const Text('Finance & Budget'),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  children: [
-          _MonthHeader(
-            label: DateFormat('MMMM yyyy').format(_viewMonth),
-            onPrev: () => _shiftMonth(-1),
-            onNext: () => _shiftMonth(1),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.account_balance_wallet_outlined),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Monthly budget',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: () => _editBudgetDialog(context, finance, y, m, limit),
-                        icon: const Icon(Icons.edit, size: 18),
-                        label: Text(limit > 0 ? 'Edit' : 'Set limit'),
-                      ),
-                    ],
-                  ),
-                  if (limit <= 0)
-                    Text(
-                      'Set a monthly limit to track spending from task expenses.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    )
-                  else ...[
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 10,
-                        backgroundColor:
-                            Theme.of(context).colorScheme.surfaceContainerHighest,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Spent (from tasks): ${currency.format(spentTasks)} / ${currency.format(limit)}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      'Remaining: ${currency.format((limit - spentTasks).clamp(0, double.infinity))}',
-                      style: TextStyle(
-                        color: spentTasks > limit
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          _SectionTitle(
-            icon: Icons.receipt_long,
-            title: 'Bills & due dates',
-            onAdd: () => _addBillSheet(context, finance),
-          ),
-          if (upcomingBills.isNotEmpty) ...[
-            Text(
-              'Due within 7 days',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          if (finance.bills.isEmpty)
-            const _EmptyHint('Add recurring bills like rent, utilities, etc.')
-          else
-            ...finance.bills.map(
-              (b) => _BillTile(
-                bill: b,
-                highlight: withinWeek(b.nextDueDate),
-              ),
-            ),
-          const SizedBox(height: 20),
-          _SectionTitle(
-            icon: Icons.subscriptions_outlined,
-            title: 'Subscriptions',
-            onAdd: () => _addSubscriptionSheet(context, finance),
-          ),
-          if (upcomingSubs.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Some subscriptions renew within 7 days (highlighted below).',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.orange.shade800,
-                    ),
-              ),
-            ),
-          if (finance.subscriptions.isEmpty)
-            const _EmptyHint('Track Netflix, gym, cloud — with renewal reminders.')
-          else
-            ...finance.subscriptions.map(
-              (s) => _SubscriptionTile(
-                sub: s,
-                highlight: withinWeek(s.nextRenewalDate),
-              ),
-            ),
-          const SizedBox(height: 20),
-          _SectionTitle(
-            icon: Icons.savings_outlined,
-            title: 'Savings goals',
-            onAdd: () => _addGoalSheet(context, finance),
-          ),
-          if (finance.savingsGoals.isEmpty)
-            const _EmptyHint('Create a goal and log progress toward it.')
-          else
-            ...finance.savingsGoals.map((g) => _GoalTile(goal: g)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              const Icon(Icons.task_alt, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Task expenses',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Amounts you attach to tasks (e.g. “Buy groceries — \$45”) roll into the monthly overview.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          if (taskExpenses.isEmpty)
-            const _EmptyHint('Edit a task and set “Expense amount”.')
-          else
-            ...taskExpenses.take(12).map((t) => _TaskExpenseTile(task: t)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: FloatingActionButton.extended(
-            heroTag: 'fab_finance_add',
-            onPressed: () => _financeFabMenu(context, finance),
-            icon: const Icon(Icons.add),
-            label: const Text('Add'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _financeFabMenu(BuildContext context, FinanceProvider finance) {
+  void _fabMenu(FinanceProvider finance) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -267,37 +56,54 @@ class _FinanceScreenState extends State<FinanceScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.receipt_long),
+              leading: const Icon(Icons.receipt_long_outlined),
               title: const Text('Bill'),
               onTap: () {
                 Navigator.pop(ctx);
-                _addBillSheet(context, finance);
+                _addBillSheet(finance);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.subscriptions),
+              leading: const Icon(Icons.subscriptions_outlined),
               title: const Text('Subscription'),
               onTap: () {
                 Navigator.pop(ctx);
-                _addSubscriptionSheet(context, finance);
+                _addSubscriptionSheet(finance);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.savings),
+              leading: const Icon(Icons.savings_outlined),
               title: const Text('Savings goal'),
               onTap: () {
                 Navigator.pop(ctx);
-                _addGoalSheet(context, finance);
+                _addGoalSheet(finance);
               },
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
     );
   }
 
+  void _onFabPressed(FinanceProvider finance) {
+    // Context-aware + button:
+    // - Overview -> add Bill
+    // - Subscriptions -> add Subscription
+    // - Goals -> add Savings goal
+    final i = _tabs.index;
+    if (i == 0) {
+      _addBillSheet(finance);
+      return;
+    }
+    if (i == 1) {
+      _addSubscriptionSheet(finance);
+      return;
+    }
+    _addGoalSheet(finance);
+  }
+
   Future<void> _editBudgetDialog(
-    BuildContext context,
     FinanceProvider finance,
     int year,
     int month,
@@ -309,7 +115,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Budget — ${DateFormat('MMMM yyyy').format(DateTime(year, month))}'),
+        title: const Text('Budget'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
@@ -326,16 +132,38 @@ class _FinanceScreenState extends State<FinanceScreen> {
         ],
       ),
     );
-    if (ok == true && context.mounted) {
+    if (ok == true && mounted) {
+      // Defer side-effects (Provider notify / SnackBar) to the next frame.
+      // Otherwise, the dialog route can still be tearing down and Flutter may
+      // assert about dependents during rebuild.
       final v = double.tryParse(controller.text.replaceAll(',', '')) ?? 0;
-      finance.setMonthlyBudget(year, month, v);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (v <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Enter a valid amount (greater than 0).'),
+            ),
+          );
+          return;
+        }
+        try {
+          finance.setMonthlyBudget(year, month, v);
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not save budget: $e')),
+          );
+        }
+      });
     }
+    // NOTE: We intentionally don't dispose these short-lived controllers.
+    // Disposing during/around route close animations can trigger
+    // \"TextEditingController used after being disposed\" on some devices.
   }
 
-  Future<void> _addBillSheet(BuildContext context, FinanceProvider finance) async {
+  Future<void> _addBillSheet(FinanceProvider finance) async {
     final title = TextEditingController();
     final amount = TextEditingController();
-    final notes = TextEditingController();
     DateTime due = DateTime.now();
     bool monthly = true;
 
@@ -343,75 +171,105 @@ class _FinanceScreenState extends State<FinanceScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
+      builder: (ctx) {
+        return Padding(
           padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            top: 8,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('New bill', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextField(controller: title, decoration: const InputDecoration(labelText: 'Name')),
-              TextField(
-                controller: amount,
-                decoration: const InputDecoration(labelText: 'Amount'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              ListTile(
-                title: Text(DateFormat('MMM d, y').format(due)),
-                subtitle: const Text('Due date'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: due,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (d != null) setSt(() => due = d);
-                },
-              ),
-              SwitchListTile(
-                value: monthly,
-                title: const Text('Repeats monthly'),
-                onChanged: (v) => setSt(() => monthly = v),
-              ),
-              TextField(controller: notes, decoration: const InputDecoration(labelText: 'Notes (optional)')),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () {
-                  final a = double.tryParse(amount.text.replaceAll(',', '')) ?? 0;
-                  if (title.text.trim().isEmpty || a <= 0) return;
-                  finance.addBill(
-                    Bill(
-                      id: finance.newId(),
-                      title: title.text.trim(),
-                      amount: a,
-                      nextDueDate: due,
-                      notes: notes.text.trim(),
-                      isMonthly: monthly,
+          child: StatefulBuilder(
+            builder: (ctx, setSt) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'New bill',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
-                  );
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Save bill'),
-              ),
-            ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: title,
+                      decoration: const InputDecoration(
+                        labelText: 'What is it?',
+                        hintText: 'e.g. Rent, Electric',
+                        border: OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amount,
+                      decoration: const InputDecoration(
+                        labelText: 'Amount',
+                        prefixText: '\$ ',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Due date'),
+                      subtitle: Text(DateFormat('EEE, MMM d').format(due)),
+                      trailing: const Icon(Icons.calendar_today_outlined, size: 20),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: due,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) setSt(() => due = d);
+                      },
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: monthly,
+                      title: const Text('Repeats every month'),
+                      onChanged: (v) => setSt(() => monthly = v),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () {
+                        final a = double.tryParse(amount.text.replaceAll(',', '')) ?? 0;
+                        if (title.text.trim().isEmpty || a <= 0) return;
+                        Navigator.pop(ctx);
+                        final t = title.text.trim();
+                        final d = due;
+                        final isM = monthly;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          finance.addBill(
+                            Bill(
+                              id: finance.newId(),
+                              title: t,
+                              amount: a,
+                              nextDueDate: d,
+                              notes: '',
+                              isMonthly: isM,
+                            ),
+                          );
+                        });
+                      },
+                      child: const Text('Add bill'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-        ),
-      ),
+        );
+      },
     );
+    // NOTE: Intentionally not disposing short-lived controllers here.
   }
 
-  Future<void> _addSubscriptionSheet(BuildContext context, FinanceProvider finance) async {
+  Future<void> _addSubscriptionSheet(FinanceProvider finance) async {
     final name = TextEditingController();
     final amount = TextEditingController();
-    final notes = TextEditingController();
     DateTime next = DateTime.now().add(const Duration(days: 30));
     SubscriptionCycle cycle = SubscriptionCycle.monthly;
 
@@ -419,185 +277,588 @@ class _FinanceScreenState extends State<FinanceScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
+      builder: (ctx) {
+        return Padding(
           padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            top: 8,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('New subscription', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-              TextField(
-                controller: amount,
-                decoration: const InputDecoration(labelText: 'Amount per cycle'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              DropdownButtonFormField<SubscriptionCycle>(
-                value: cycle,
-                items: const [
-                  DropdownMenuItem(value: SubscriptionCycle.monthly, child: Text('Monthly')),
-                  DropdownMenuItem(value: SubscriptionCycle.yearly, child: Text('Yearly')),
-                ],
-                onChanged: (v) => setSt(() => cycle = v ?? SubscriptionCycle.monthly),
-                decoration: const InputDecoration(labelText: 'Billing'),
-              ),
-              ListTile(
-                title: Text(DateFormat('MMM d, y').format(next)),
-                subtitle: const Text('Next renewal / reminder'),
-                trailing: const Icon(Icons.event),
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: next,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (d != null) setSt(() => next = d);
-                },
-              ),
-              TextField(controller: notes, decoration: const InputDecoration(labelText: 'Notes (optional)')),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () {
-                  final a = double.tryParse(amount.text.replaceAll(',', '')) ?? 0;
-                  if (name.text.trim().isEmpty || a <= 0) return;
-                  finance.addSubscription(
-                    SubscriptionItem(
-                      id: finance.newId(),
-                      name: name.text.trim(),
-                      amount: a,
-                      cycle: cycle,
-                      nextRenewalDate: next,
-                      notes: notes.text.trim(),
+          child: StatefulBuilder(
+            builder: (ctx, setSt) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'New subscription',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
-                  );
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Save subscription'),
-              ),
-            ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: name,
+                      decoration: const InputDecoration(
+                        labelText: 'Name',
+                        hintText: 'e.g. Netflix',
+                        border: OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amount,
+                      decoration: const InputDecoration(
+                        labelText: 'Amount per period',
+                        prefixText: '\$ ',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SegmentedButton<SubscriptionCycle>(
+                        segments: const [
+                          ButtonSegment(
+                            value: SubscriptionCycle.monthly,
+                            label: Text('Monthly'),
+                          ),
+                          ButtonSegment(
+                            value: SubscriptionCycle.yearly,
+                            label: Text('Yearly'),
+                          ),
+                        ],
+                        selected: {cycle},
+                        onSelectionChanged: (s) {
+                          setSt(() => cycle = s.first);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Next renewal'),
+                      subtitle: Text(DateFormat('EEE, MMM d, y').format(next)),
+                      trailing: const Icon(Icons.event_outlined, size: 20),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: next,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) setSt(() => next = d);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () {
+                        final a = double.tryParse(amount.text.replaceAll(',', '')) ?? 0;
+                        if (name.text.trim().isEmpty || a <= 0) return;
+                        Navigator.pop(ctx);
+                        final n = name.text.trim();
+                        final c = cycle;
+                        final nx = next;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          finance.addSubscription(
+                            SubscriptionItem(
+                              id: finance.newId(),
+                              name: n,
+                              amount: a,
+                              cycle: c,
+                              nextRenewalDate: nx,
+                              notes: '',
+                            ),
+                          );
+                        });
+                      },
+                      child: const Text('Add subscription'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-        ),
-      ),
+        );
+      },
     );
+    // NOTE: Intentionally not disposing short-lived controllers here.
   }
 
-  Future<void> _addGoalSheet(BuildContext context, FinanceProvider finance) async {
+  Future<void> _addGoalSheet(FinanceProvider finance) async {
     final title = TextEditingController();
     final target = TextEditingController();
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-          top: 8,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('New savings goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            TextField(controller: title, decoration: const InputDecoration(labelText: 'Goal name')),
-            TextField(
-              controller: target,
-              decoration: const InputDecoration(labelText: 'Target amount'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () {
-                final t = double.tryParse(target.text.replaceAll(',', '')) ?? 0;
-                if (title.text.trim().isEmpty || t <= 0) return;
-                finance.addSavingsGoal(
-                  SavingsGoal(
-                    id: finance.newId(),
-                    title: title.text.trim(),
-                    targetAmount: t,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Savings goal',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: title,
+                  decoration: const InputDecoration(
+                    labelText: 'Goal name',
+                    border: OutlineInputBorder(),
                   ),
-                );
-                Navigator.pop(ctx);
-              },
-              child: const Text('Save goal'),
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => setSt(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: target,
+                  decoration: const InputDecoration(
+                    labelText: 'Target amount',
+                    prefixText: '\$ ',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setSt(() {}),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () {
+                    final t =
+                        double.tryParse(target.text.replaceAll(',', '')) ?? 0;
+                    final name = title.text.trim();
+                    if (name.isEmpty || t <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Enter a goal name and a valid amount.'),
+                        ),
+                      );
+                      return;
+                    }
+                    try {
+                      Navigator.pop(ctx);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        finance.addSavingsGoal(
+                          SavingsGoal(
+                            id: finance.newId(),
+                            title: name,
+                            targetAmount: t,
+                          ),
+                        );
+                      });
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not save goal: $e')),
+                      );
+                    }
+                  },
+                  child: const Text('Create goal'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+    // NOTE: Intentionally not disposing short-lived controllers here.
   }
-}
 
-class _MonthHeader extends StatelessWidget {
-  final String label;
-  final VoidCallback onPrev;
-  final VoidCallback onNext;
-
-  const _MonthHeader({
-    required this.label,
-    required this.onPrev,
-    required this.onNext,
-  });
+  Future<void> _contributeDialog(FinanceProvider finance, SavingsGoal goal) async {
+    final c = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add amount'),
+        content: TextField(
+          controller: c,
+          decoration: const InputDecoration(
+            labelText: 'Amount',
+            prefixText: '\$ ',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Add')),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      final v = double.tryParse(c.text.replaceAll(',', '')) ?? 0;
+      if (v > 0) finance.contributeToGoal(goal.id, v);
+    }
+    // NOTE: Intentionally not disposing short-lived controller here.
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // Do not `watch` FinanceProvider here — it rebuilds TabBarView on every save and
+    // can reset the selected tab / cause layout jumps. Each tab watches what it needs.
+    final cs = Theme.of(context).colorScheme;
+
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        IconButton(onPressed: onPrev, icon: const Icon(Icons.chevron_left)),
-        Expanded(
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: TabBar(
+                controller: _tabs,
+                tabs: const [
+                  Tab(text: 'Overview'),
+                  Tab(text: 'Subscriptions'),
+                  Tab(text: 'Goals'),
+                ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: [
+                  _FinanceTabKeepAlive(
+                    child: _OverviewTab(
+                      viewMonth: _viewMonth,
+                      onShiftMonth: _shiftMonth,
+                      onEditBudget: () {
+                        final finance = context.read<FinanceProvider>();
+                        final y = _viewMonth.year;
+                        final m = _viewMonth.month;
+                        final limit =
+                            finance.budgetForMonth(y, m)?.limitAmount ?? 0;
+                        _editBudgetDialog(finance, y, m, limit);
+                      },
+                    ),
+                  ),
+                  const _FinanceTabKeepAlive(
+                    child: _UpcomingTab(),
+                  ),
+                  _FinanceTabKeepAlive(
+                    child: _GoalsTab(onContribute: _contributeDialog),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: SafeArea(
+            child: Material(
+              color: cs.primary,
+              elevation: 3,
+              shadowColor: Colors.black26,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => _onFabPressed(context.read<FinanceProvider>()),
+                onLongPress: () => _fabMenu(context.read<FinanceProvider>()),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: Icon(Icons.add_rounded, color: cs.onPrimary, size: 28),
                 ),
+              ),
+            ),
           ),
         ),
-        IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
       ],
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final VoidCallback onAdd;
+/// Keeps tab scroll position and subtree alive when switching tabs / when siblings update.
+class _FinanceTabKeepAlive extends StatefulWidget {
+  const _FinanceTabKeepAlive({required this.child});
 
-  const _SectionTitle({
-    required this.icon,
-    required this.title,
-    required this.onAdd,
-  });
+  final Widget child;
+
+  @override
+  State<_FinanceTabKeepAlive> createState() => _FinanceTabKeepAliveState();
+}
+
+class _FinanceTabKeepAliveState extends State<_FinanceTabKeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 22),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+    super.build(context);
+    return widget.child;
+  }
+}
+
+// —— Overview ——
+
+class _OverviewTab extends StatelessWidget {
+  const _OverviewTab({
+    required this.viewMonth,
+    required this.onShiftMonth,
+    required this.onEditBudget,
+  });
+
+  final DateTime viewMonth;
+  final ValueChanged<int> onShiftMonth;
+  final VoidCallback onEditBudget;
+
+  @override
+  Widget build(BuildContext context) {
+    final finance = context.watch<FinanceProvider>();
+    final tasks = context.watch<TaskProvider>().allTasks;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
+
+    final y = viewMonth.year;
+    final m = viewMonth.month;
+    final budget = finance.budgetForMonth(y, m);
+    final spentTasks = finance.spentFromTasksForMonth(y, m);
+    final limit = budget?.limitAmount ?? 0;
+    final progress = limit > 0 ? (spentTasks / limit).clamp(0.0, 1.0) : 0.0;
+
+    final taskExpenses = tasks
+        .where((t) => t.expenseAmount != null && t.expenseAmount! > 0)
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      children: [
+        Material(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: onEditBudget,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.pie_chart_outline_rounded, size: 20, color: cs.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Monthly budget',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        limit > 0 ? 'Edit' : 'Set',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: cs.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
+                  if (limit <= 0) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tap to set a limit. Task expenses count toward this month.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 6,
+                        backgroundColor: cs.surfaceContainerHighest,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${currency.format(spentTasks)} of ${currency.format(limit)} from tasks',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    Text(
+                      '${currency.format((limit - spentTasks).clamp(0, double.infinity))} left',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: spentTasks > limit ? cs.error : cs.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          IconButton(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Add',
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Task expenses',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Set an amount on a task to include it here.',
+          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        if (taskExpenses.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No task expenses yet.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          ...taskExpenses.take(12).map(
+                (t) => _TaskExpenseRow(task: t),
+              ),
+      ],
+    );
+  }
+}
+
+// —— Upcoming (bills + subs, by date) ——
+
+class _UpcomingTab extends StatelessWidget {
+  const _UpcomingTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final finance = context.watch<FinanceProvider>();
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekAhead = today.add(const Duration(days: 7));
+
+    bool withinWeek(DateTime raw) {
+      final d = DateTime(raw.year, raw.month, raw.day);
+      return !d.isBefore(today) && !d.isAfter(weekAhead);
+    }
+
+    final rows = <_DueSort>[];
+    for (final b in finance.bills) {
+      rows.add(_DueSort(
+        at: b.nextDueDate,
+        child: _BillRow(
+          bill: b,
+          highlight: withinWeek(b.nextDueDate),
+          currency: currency,
+        ),
+      ));
+    }
+    for (final s in finance.subscriptions) {
+      rows.add(_DueSort(
+        at: s.nextRenewalDate,
+        child: _SubRow(
+          sub: s,
+          highlight: withinWeek(s.nextRenewalDate),
+          currency: currency,
+        ),
+      ));
+    }
+    rows.sort((a, b) => a.at.compareTo(b.at));
+
+    if (rows.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No bills or subscriptions.\nTap + to add one.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      itemCount: rows.length,
+      separatorBuilder: (_, _) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
+      itemBuilder: (_, i) => rows[i].child,
+    );
+  }
+}
+
+class _DueSort {
+  _DueSort({required this.at, required this.child});
+  final DateTime at;
+  final Widget child;
+}
+
+class _BillRow extends StatelessWidget {
+  const _BillRow({
+    required this.bill,
+    required this.highlight,
+    required this.currency,
+  });
+
+  final Bill bill;
+  final bool highlight;
+  final NumberFormat currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final finance = context.read<FinanceProvider>();
+    final cs = Theme.of(context).colorScheme;
+    final due = DateFormat('MMM d').format(bill.nextDueDate);
+
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      tileColor: highlight ? cs.errorContainer.withValues(alpha: 0.35) : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      leading: Icon(Icons.receipt_outlined, color: cs.primary, size: 22),
+      title: Text(bill.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        'Due $due${bill.isMonthly ? ' · monthly' : ''}',
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            currency.format(bill.amount),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 20),
+            onSelected: (v) {
+              // Defer provider mutation until the popup menu route is closed.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (v == 'paid') finance.markBillPaid(bill.id);
+                if (v == 'delete') finance.deleteBill(bill.id);
+              });
+            },
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(value: 'paid', child: Text('Mark paid')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
           ),
         ],
       ),
@@ -605,217 +866,184 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _EmptyHint extends StatelessWidget {
-  final String text;
-  const _EmptyHint(this.text);
+class _SubRow extends StatelessWidget {
+  const _SubRow({
+    required this.sub,
+    required this.highlight,
+    required this.currency,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).hintColor,
-            ),
-      ),
-    );
-  }
-}
-
-class _BillTile extends StatelessWidget {
-  final Bill bill;
-  final bool highlight;
-
-  const _BillTile({required this.bill, this.highlight = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final finance = context.read<FinanceProvider>();
-    final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
-    final due = DateFormat('MMM d').format(bill.nextDueDate);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: highlight
-          ? Theme.of(context).colorScheme.errorContainer.withOpacity(0.35)
-          : null,
-      child: ListTile(
-        title: Text(bill.title),
-        subtitle: Text(
-          '${currency.format(bill.amount)} · Due $due${bill.isMonthly ? ' · Monthly' : ''}',
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (v) {
-            if (v == 'paid') finance.markBillPaid(bill.id);
-            if (v == 'delete') finance.deleteBill(bill.id);
-          },
-          itemBuilder: (ctx) => [
-            const PopupMenuItem(value: 'paid', child: Text('Mark paid')),
-            const PopupMenuItem(value: 'delete', child: Text('Delete')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SubscriptionTile extends StatelessWidget {
   final SubscriptionItem sub;
   final bool highlight;
-
-  const _SubscriptionTile({required this.sub, this.highlight = false});
+  final NumberFormat currency;
 
   @override
   Widget build(BuildContext context) {
     final finance = context.read<FinanceProvider>();
-    final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
-    final next = DateFormat('MMM d, y').format(sub.nextRenewalDate);
+    final cs = Theme.of(context).colorScheme;
+    final next = DateFormat('MMM d').format(sub.nextRenewalDate);
     final cycle = sub.cycle == SubscriptionCycle.monthly ? 'Monthly' : 'Yearly';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: highlight
-          ? Colors.orange.shade50.withOpacity(0.5)
-          : null,
-      child: ListTile(
-        title: Text(sub.name),
-        subtitle: Text('${currency.format(sub.amount)} · $cycle · Next $next'),
-        trailing: PopupMenuButton<String>(
-          onSelected: (v) {
-            if (v == 'next') finance.advanceSubscriptionRenewal(sub.id);
-            if (v == 'delete') finance.deleteSubscription(sub.id);
-          },
-          itemBuilder: (ctx) => [
-            const PopupMenuItem(
-              value: 'next',
-              child: Text('Record renewal (next cycle)'),
-            ),
-            const PopupMenuItem(value: 'delete', child: Text('Delete')),
-          ],
-        ),
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      tileColor: highlight ? cs.tertiaryContainer.withValues(alpha: 0.45) : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      leading: Icon(Icons.subscriptions_outlined, color: cs.tertiary, size: 22),
+      title: Text(sub.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        '$cycle · $next',
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            currency.format(sub.amount),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 20),
+            onSelected: (v) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (v == 'next') finance.advanceSubscriptionRenewal(sub.id);
+                if (v == 'delete') finance.deleteSubscription(sub.id);
+              });
+            },
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(value: 'next', child: Text('Next renewal')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _GoalTile extends StatelessWidget {
-  final SavingsGoal goal;
+// —— Goals ——
 
-  const _GoalTile({required this.goal});
+class _GoalsTab extends StatelessWidget {
+  const _GoalsTab({required this.onContribute});
+
+  final Future<void> Function(FinanceProvider finance, SavingsGoal goal) onContribute;
 
   @override
   Widget build(BuildContext context) {
-    final finance = context.read<FinanceProvider>();
+    final finance = context.watch<FinanceProvider>();
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
+    final goals = finance.savingsGoals;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    if (goals.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No savings goals yet.\nTap + to create one.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      itemCount: goals.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, i) {
+        final g = goals[i];
+        return Material(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    goal.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        g.title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 22),
+                      tooltip: 'Add',
+                      onPressed: () => onContribute(finance, g),
+                    ),
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      onSelected: (v) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (v == 'delete') finance.deleteSavingsGoal(g.id);
+                        });
+                      },
+                      itemBuilder: (ctx) => const [
+                        PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: g.progress,
+                    minHeight: 6,
+                    backgroundColor: cs.surfaceContainerHighest,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  tooltip: 'Add contribution',
-                  onPressed: () async {
-                    final c = TextEditingController();
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Add to goal'),
-                        content: TextField(
-                          controller: c,
-                          decoration: const InputDecoration(
-                            labelText: 'Amount',
-                            border: OutlineInputBorder(),
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          autofocus: true,
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Add'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (ok == true && context.mounted) {
-                      final v = double.tryParse(c.text.replaceAll(',', '')) ?? 0;
-                      if (v > 0) finance.contributeToGoal(goal.id, v);
-                    }
-                  },
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == 'delete') finance.deleteSavingsGoal(goal.id);
-                  },
-                  itemBuilder: (ctx) => [
-                    const PopupMenuItem(value: 'delete', child: Text('Delete goal')),
-                  ],
+                const SizedBox(height: 6),
+                Text(
+                  '${currency.format(g.currentAmount)} / ${currency.format(g.targetAmount)}',
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: goal.progress,
-                minHeight: 8,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${currency.format(goal.currentAmount)} / ${currency.format(goal.targetAmount)}',
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
-class _TaskExpenseTile extends StatelessWidget {
-  final TaskItem task;
+class _TaskExpenseRow extends StatelessWidget {
+  const _TaskExpenseRow({required this.task});
 
-  const _TaskExpenseTile({required this.task});
+  final TaskItem task;
 
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.simpleCurrency(decimalDigits: 2);
+    final cs = Theme.of(context).colorScheme;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(task.title),
-        subtitle: Text(
-          task.dueDate != null
-              ? DateFormat('MMM d').format(task.dueDate!)
-              : 'No due date',
-        ),
-        trailing: Text(
-          currency.format(task.expenseAmount ?? 0),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (ctx) => TaskFormScreen(task: task)),
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+      title: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        task.dueDate != null ? DateFormat('MMM d').format(task.dueDate!) : 'No date',
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+      ),
+      trailing: Text(
+        currency.format(task.expenseAmount ?? 0),
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+      onTap: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (ctx) => TaskFormScreen(task: task),
         ),
       ),
     );
   }
 }
+
+// (no controller-dispose helper; see notes above)

@@ -5,16 +5,27 @@ import 'package:todoapp/models/monthly_budget.dart';
 import 'package:todoapp/models/savings_goal.dart';
 import 'package:todoapp/models/subscription_item.dart';
 import 'package:todoapp/models/task_item.dart';
+import 'package:todoapp/services/hive_user_boxes.dart';
 import 'package:uuid/uuid.dart';
 
 class FinanceProvider extends ChangeNotifier {
-  final Box<Bill> _billBox = Hive.box<Bill>('bills');
-  final Box<SubscriptionItem> _subBox =
-      Hive.box<SubscriptionItem>('subscriptions');
-  final Box<SavingsGoal> _goalBox = Hive.box<SavingsGoal>('savings_goals');
-  final Box<MonthlyBudget> _budgetBox =
-      Hive.box<MonthlyBudget>('monthly_budgets');
-  final Box<TaskItem> _taskBox = Hive.box<TaskItem>('tasks');
+  FinanceProvider({required String userId})
+      : _billBox = Hive.box<Bill>(HiveUserBoxes.name('bills', userId)),
+        _subBox = Hive.box<SubscriptionItem>(
+          HiveUserBoxes.name('subscriptions', userId),
+        ),
+        _goalBox =
+            Hive.box<SavingsGoal>(HiveUserBoxes.name('savings_goals', userId)),
+        _budgetBox = Hive.box<MonthlyBudget>(
+          HiveUserBoxes.name('monthly_budgets', userId),
+        ),
+        _taskBox = Hive.box<TaskItem>(HiveUserBoxes.name('tasks', userId));
+
+  final Box<Bill> _billBox;
+  final Box<SubscriptionItem> _subBox;
+  final Box<SavingsGoal> _goalBox;
+  final Box<MonthlyBudget> _budgetBox;
+  final Box<TaskItem> _taskBox;
   final _uuid = const Uuid();
 
   List<Bill> get bills =>

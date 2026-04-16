@@ -41,9 +41,10 @@ class TaskTile extends StatelessWidget {
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
     final notes = context.watch<NotesProvider>();
     final theme = Theme.of(context);
-    final expense = task.expenseAmount;
+    final cs = theme.colorScheme;
     final hasNote = task.noteMarkdown.trim().isNotEmpty;
     final hasAttach = notes.attachmentsForTask(task.id).isNotEmpty;
+    final priorityColor = _getPriorityColor(context);
 
     final blocked =
         task.dependencies.isNotEmpty &&
@@ -95,281 +96,348 @@ class TaskTile extends StatelessWidget {
       }
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? theme.colorScheme.primaryContainer.withOpacity(0.3)
-            : theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(16),
-        border: isSelected
-            ? Border.all(color: theme.colorScheme.primary, width: 2)
-            : isOverdue
-                ? Border.all(
-                    color: theme.colorScheme.error.withValues(alpha: 0.45),
-                    width: 1.5,
-                  )
-                : Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-                  ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.shadow.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-          if (isOverdue)
-            BoxShadow(
-              color: theme.colorScheme.error.withValues(alpha: 0.12),
-              blurRadius: 10,
-              spreadRadius: 0,
-            ),
-        ],
-      ),
-      child: Opacity(
-        opacity: blocked ? 0.5 : 1.0,
-        child: ListTile(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          onTap: blocked ? null : onTap,
-          onLongPress: blocked ? null : onLongPress,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: isSelectionMode
-              ? Checkbox(value: isSelected, onChanged: (_) => onTap())
-              : Container(
-                  width: 4,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isOverdue
-                        ? theme.colorScheme.error
-                        : _getPriorityColor(context),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-          title: Row(
-            children: [
-              if (blocked)
-                const Icon(Icons.lock_outline, size: 16, color: Colors.grey),
-              if (blocked) const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  task.title,
-                  style: TextStyle(
-                    decoration: task.isCompleted
-                        ? TextDecoration.lineThrough
-                        : null,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (countdownText != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer
-                        .withValues(alpha: 0.65),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    countdownText,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (isOverdue)
-                const Text(
-                  'Overdue',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              if (blocked)
-                const Text(
-                  'Blocked by dependencies',
-                  style: TextStyle(color: Colors.red, fontSize: 10),
-                ),
-              if (task.description.isNotEmpty)
-                Text(
-                  task.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
-                ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 12,
-                runSpacing: 4,
+    final dueText = task.dueDate != null ? DateFormat('MMM d').format(task.dueDate!) : null;
+    final timeText = task.startTime != null
+        ? '${DateFormat('HH:mm').format(task.startTime!)}${task.endTime != null ? '–${DateFormat('HH:mm').format(task.endTime!)}' : ''}'
+        : null;
+    Widget? metaLine;
+    final metaParts = <Widget>[
+      if (countdownText != null)
+        _InlineMeta(
+          icon: Icons.timer_outlined,
+          text: countdownText,
+          color: cs.primary,
+        ),
+      if (dueText != null)
+        _InlineMeta(
+          icon: Icons.event_outlined,
+          text: dueText,
+          color: isOverdue ? cs.error : cs.primary,
+        ),
+      if (timeText != null)
+        _InlineMeta(
+          icon: Icons.schedule_rounded,
+          text: timeText,
+          color: cs.onSurfaceVariant,
+        ),
+      if (hasAttach)
+        _InlineMeta(
+          icon: Icons.attach_file,
+          text: 'Files',
+          color: cs.onSurfaceVariant,
+        ),
+      if (hasNote)
+        _InlineMeta(
+          icon: Icons.notes_outlined,
+          text: 'Note',
+          color: cs.onSurfaceVariant,
+        ),
+    ];
+    if (metaParts.isNotEmpty) {
+      metaLine = Wrap(
+        spacing: 10,
+        runSpacing: 2,
+        children: metaParts,
+      );
+    }
+
+    final row = Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: blocked ? null : onTap,
+            onLongPress: blocked ? null : onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (task.dueDate != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 12,
-                          color: isOverdue
-                              ? Colors.red
-                              : theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          DateFormat('MMM d').format(task.dueDate!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isOverdue
-                                ? Colors.red
-                                : theme.colorScheme.primary,
+                  if (isSelectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => onTap(),
+                      ),
+                    )
+                  else
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: blocked
+                          ? null
+                          : () {
+                              task.isCompleted = !task.isCompleted;
+                              taskProvider.updateTask(task);
+                            },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        curve: Curves.easeOutCubic,
+                        width: 20,
+                        height: 20,
+                        margin: const EdgeInsets.only(top: 2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color:
+                              task.isCompleted ? cs.primary : Colors.transparent,
+                          border: Border.all(
+                            color: task.isCompleted
+                                ? cs.primary
+                                : cs.outlineVariant.withValues(alpha: 0.7),
+                            width: 1.4,
                           ),
                         ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 140),
+                          transitionBuilder: (child, anim) =>
+                              ScaleTransition(scale: anim, child: child),
+                          child: task.isCompleted
+                              ? Icon(
+                                  Icons.check_rounded,
+                                  key: const ValueKey('done'),
+                                  size: 14,
+                                  color: cs.onPrimary,
+                                )
+                              : const SizedBox(key: ValueKey('empty')),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: isOverdue ? cs.error : priorityColor,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 160),
+                                curve: Curves.easeOutCubic,
+                                style: theme.textTheme.titleSmall!.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  decoration: task.isCompleted
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  color: task.isCompleted
+                                      ? cs.onSurfaceVariant
+                                      : cs.onSurface,
+                                ),
+                                child: Text(
+                                  task.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (task.description.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            task.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                        if (metaLine != null) ...[
+                          const SizedBox(height: 5),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutCubic,
+                            child: metaLine,
+                          ),
+                        ],
                       ],
                     ),
-                  if (task.startTime != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${DateFormat('HH:mm').format(task.startTime!)} - ${task.endTime != null ? DateFormat('HH:mm').format(task.endTime!) : ''}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
+                  ),
+                  if (!isSelectionMode)
+                    PopupMenuButton<String>(
+                      tooltip: 'Task actions',
+                      icon: Icon(
+                        Icons.more_vert_rounded,
+                        color: cs.onSurfaceVariant,
+                        size: 20,
+                      ),
+                      onSelected: (v) {
+                        switch (v) {
+                          case 'favorite':
+                            taskProvider.toggleFavorite(task.id);
+                            return;
+                          case 'focus':
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    FocusModeScreen(task: task),
+                              ),
+                            );
+                            return;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'favorite',
+                          child: Row(
+                            children: [
+                              Icon(
+                                task.isFavorited
+                                    ? Icons.star_rounded
+                                    : Icons.star_border_rounded,
+                                size: 18,
+                                color: task.isFavorited
+                                    ? Colors.amber
+                                    : cs.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(task.isFavorited
+                                  ? 'Unfavorite'
+                                  : 'Favorite'),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  if (task.recurringInterval != RecurringInterval.none)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.repeat,
-                          size: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          task.recurringInterval.name.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (expense != null && expense > 0)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.payments_outlined,
-                          size: 12,
-                          color: Colors.green.shade700,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          NumberFormat.simpleCurrency(decimalDigits: 2).format(expense),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (hasNote)
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.edit_note, size: 14, color: Colors.deepPurple),
-                        SizedBox(width: 2),
-                        Text('Note', style: TextStyle(fontSize: 10, color: Colors.deepPurple, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  if (hasAttach)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.attach_file,
-                          size: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          'Files',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.colorScheme.onSurfaceVariant,
+                        PopupMenuItem(
+                          value: 'focus',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.center_focus_strong,
+                                size: 18,
+                                color: cs.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              const Text('Focus mode'),
+                            ],
                           ),
                         ),
                       ],
                     ),
                 ],
               ),
-            ],
+            ),
           ),
-          trailing: !isSelectionMode
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        task.isFavorited ? Icons.star : Icons.star_border,
-                        color: task.isFavorited ? Colors.amber : Colors.grey,
-                        size: 20,
-                      ),
-                      onPressed: () => taskProvider.toggleFavorite(task.id),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.center_focus_strong,
-                        color: theme.colorScheme.primary,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FocusModeScreen(task: task),
-                        ),
-                      ),
-                    ),
-                    Checkbox(
-                      value: task.isCompleted,
-                      onChanged: blocked
-                          ? null
-                          : (val) {
-                              task.isCompleted = val ?? false;
-                              taskProvider.updateTask(task);
-                            },
-                    ),
-                  ],
-                )
-              : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 48),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: cs.outlineVariant.withValues(alpha: 0.28),
+          ),
+        ),
+      ],
+    );
+
+    if (isSelectionMode || blocked) return row;
+
+    return Dismissible(
+      key: ValueKey<String>('task_dismiss_${task.id}'),
+      direction: DismissDirection.horizontal,
+      movementDuration: const Duration(milliseconds: 180),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          // Right swipe: mark complete (keep the row).
+          if (!task.isCompleted) {
+            task.isCompleted = true;
+            taskProvider.updateTask(task);
+          }
+          return false;
+        }
+        if (direction == DismissDirection.endToStart) {
+          // Left swipe: delete.
+          return true;
+        }
+        return false;
+      },
+      onDismissed: (direction) {
+        if (direction == DismissDirection.endToStart) {
+          taskProvider.deleteTask(task.id);
+        }
+      },
+      background: Container(
+        color: cs.primary.withValues(alpha: 0.10),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        child: Row(
+          children: [
+            Icon(Icons.check_rounded, color: cs.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Done',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: cs.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
+      secondaryBackground: Container(
+        color: cs.error.withValues(alpha: 0.12),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'Delete',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: cs.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.delete_outline_rounded, color: cs.error),
+          ],
+        ),
+      ),
+      child: row,
+    );
+  }
+}
+
+class _InlineMeta extends StatelessWidget {
+  const _InlineMeta({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13.5, color: color),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurfaceVariant,
+            height: 1.0,
+          ),
+        ),
+      ],
     );
   }
 }

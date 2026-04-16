@@ -2,21 +2,26 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive/hive.dart';
 import 'package:todoapp/models/password_vault_item.dart';
+import 'package:todoapp/services/hive_user_boxes.dart';
 import 'package:uuid/uuid.dart';
 
 /// Site/email/username in Hive; passwords in encrypted storage (Android Keystore / iOS Keychain).
 class PasswordVaultProvider extends ChangeNotifier {
-  PasswordVaultProvider()
-      : _box = Hive.box<PasswordVaultItem>('password_vault'),
+  PasswordVaultProvider({required String userId})
+      : _userId = userId,
+        _box = Hive.box<PasswordVaultItem>(
+          HiveUserBoxes.name('password_vault', userId),
+        ),
         _secure = const FlutterSecureStorage(
           aOptions: AndroidOptions(encryptedSharedPreferences: true),
         );
 
+  final String _userId;
   final Box<PasswordVaultItem> _box;
   final FlutterSecureStorage _secure;
   final _uuid = const Uuid();
 
-  static String _pwdKey(String id) => 'vault_pwd_$id';
+  String _pwdKey(String id) => 'vault_${_userId}_pwd_$id';
 
   List<PasswordVaultItem> get entries => _box.values.toList()
     ..sort((a, b) {

@@ -141,6 +141,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   @override
   Widget build(BuildContext context) {
     final taskProvider = Provider.of<TaskProvider>(context);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     
     return Scaffold(
       appBar: AppBar(
@@ -152,111 +154,33 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
           children: [
             TextFormField(
               controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                hintText: 'What do you want to do?',
+              ),
               validator: (v) => v == null || v.isEmpty ? 'Required' : null,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             TextFormField(
               controller: _descriptionController,
-              decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _expenseController,
               decoration: const InputDecoration(
-                labelText: 'Expense amount (optional)',
-                hintText: 'e.g. 45.00 for groceries',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.payments_outlined),
+                labelText: 'Description',
+                hintText: 'Optional details',
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 24),
-            const Text('Notes (Markdown)', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              children: [
-                FilledButton.tonal(
-                  onPressed: () => _wrapNoteSelection('**', '**'),
-                  child: const Text('Bold'),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => _wrapNoteSelection('*', '*'),
-                  child: const Text('Italic'),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => _insertNoteText('\n- '),
-                  child: const Text('List'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _noteMarkdownController,
-              decoration: const InputDecoration(
-                labelText: 'Rich text note',
-                hintText: '**Bold**, *italic*, - list items',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              minLines: 4,
-              maxLines: 10,
+              maxLines: 2,
             ),
             const SizedBox(height: 12),
-            const Text('Attachments', style: TextStyle(fontWeight: FontWeight.w600)),
-            Row(
-              children: [
-                IconButton.filledTonal(
-                  tooltip: 'Photo',
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.image_outlined),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'File',
-                  onPressed: _pickFile,
-                  icon: const Icon(Icons.attach_file),
-                ),
-                IconButton.filledTonal(
-                  tooltip: _recordingVoice ? 'Stop' : 'Voice note',
-                  onPressed: _toggleVoice,
-                  icon: Icon(_recordingVoice ? Icons.stop : Icons.mic_none),
-                ),
-              ],
-            ),
-            Consumer<NotesProvider>(
-              builder: (context, notes, _) {
-                final list = notes.attachmentsForTask(_taskId);
-                if (list.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  children: list.map((a) => _AttachmentTile(attachment: a, notes: notes)).toList(),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              initialValue: widget.task?.estimatedMinutes?.toString() ?? '',
-              decoration: const InputDecoration(
-                labelText: 'Estimated Time (minutes)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.timer_outlined),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (val) => setState(() => widget.task?.estimatedMinutes = int.tryParse(val)),
-            ),
-            const SizedBox(height: 24),
-            
-            // Category Selection
-            const Text('List / Category', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+
+            // Core fields kept on one screen (minimal scrolling).
+            Text('List', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 6),
             DropdownButtonFormField<String?>(
               value: _categoryId,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
+              decoration: const InputDecoration(),
               items: [
                 const DropdownMenuItem(value: null, child: Text('Inbox (No List)')),
                 ...taskProvider.categories.map((cat) => DropdownMenuItem(
@@ -272,131 +196,344 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               ],
               onChanged: (val) => setState(() => _categoryId = val),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
 
-            const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold)),
-            Row(
-              children: TaskPriority.values.map((p) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: ChoiceChip(
-                    label: Text(p.name[0].toUpperCase()),
-                    selected: _priority == p,
-                    onSelected: (val) => setState(() => _priority = p),
-                  ),
-                ),
-              )).toList(),
-            ),
-            const SizedBox(height: 24),
-
-            const Text('Schedule & Time Blocking', style: TextStyle(fontWeight: FontWeight.bold)),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(_dueDate == null ? 'Set Due Date' : DateFormat('MMM d, y').format(_dueDate!)),
-              leading: const Icon(Icons.calendar_today),
-              onTap: () async {
-                final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime(2100));
-                if (d != null) {
-                  setState(() {
-                    _dueDate = d;
-                    // Auto-set start/end time dates if selected
-                    if (_startTime != null) _startTime = DateTime(d.year, d.month, d.day, _startTime!.hour, _startTime!.minute);
-                    if (_endTime != null) _endTime = DateTime(d.year, d.month, d.day, _endTime!.hour, _endTime!.minute);
-                  });
-                }
+            Text('Priority', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<TaskPriority>(
+              value: _priority,
+              decoration: const InputDecoration(),
+              items: TaskPriority.values
+                  .map(
+                    (p) => DropdownMenuItem(
+                      value: p,
+                      child: Text(
+                        p.name[0].toUpperCase() + p.name.substring(1),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (p) {
+                if (p == null) return;
+                setState(() => _priority = p);
               },
             ),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(_startTime == null ? 'Start Time' : DateFormat('HH:mm').format(_startTime!)),
-                    leading: const Icon(Icons.access_time),
-                    onTap: () async {
-                      final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                      if (t != null) {
-                        final d = _dueDate ?? DateTime.now();
-                        setState(() => _startTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
-                      }
-                    },
+
+            const SizedBox(height: 12),
+            Divider(color: cs.outlineVariant.withValues(alpha: 0.35)),
+
+            // Everything else goes behind a single compact "Add details" panel.
+            Theme(
+              data: theme.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 6),
+                title: Text('Add details', style: theme.textTheme.titleSmall),
+                subtitle: Text(
+                  'Schedule, notes, attachments, tags…',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    height: 1.15,
                   ),
                 ),
-                Expanded(
-                  child: ListTile(
+                children: [
+                  // Schedule (compact)
+                  ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(_endTime == null ? 'End Time' : DateFormat('HH:mm').format(_endTime!)),
-                    leading: const Icon(Icons.access_time_filled),
+                    leading: const Icon(Icons.event_outlined),
+                    title: Text(
+                      _dueDate == null
+                          ? 'Add due date'
+                          : 'Due: ${DateFormat('MMM d, y').format(_dueDate!)}',
+                    ),
+                    trailing: const Icon(Icons.add_rounded),
                     onTap: () async {
-                      final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                      if (t != null) {
-                        final d = _dueDate ?? DateTime.now();
-                        setState(() => _endTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
-                      }
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: _dueDate ?? DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime(2100),
+                      );
+                      if (d == null) return;
+                      setState(() {
+                        _dueDate = d;
+                        if (_startTime != null) {
+                          _startTime = DateTime(
+                            d.year,
+                            d.month,
+                            d.day,
+                            _startTime!.hour,
+                            _startTime!.minute,
+                          );
+                        }
+                        if (_endTime != null) {
+                          _endTime = DateTime(
+                            d.year,
+                            d.month,
+                            d.day,
+                            _endTime!.hour,
+                            _endTime!.minute,
+                          );
+                        }
+                      });
                     },
                   ),
-                ),
-              ],
-            ),
 
-            DropdownButton<RecurringInterval>(
-              isExpanded: true,
-              value: _recurringInterval,
-              items: RecurringInterval.values.map((i) => DropdownMenuItem(value: i, child: Text('Repeat: ${i.name}'))).toList(),
-              onChanged: (val) => setState(() => _recurringInterval = val!),
-            ),
-            const SizedBox(height: 24),
+                  // Notes (collapsed in UI; field only when user opens panel)
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 6),
+                    leading: const Icon(Icons.notes_outlined),
+                    title: Text('Notes', style: theme.textTheme.titleSmall),
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          FilledButton.tonal(
+                            onPressed: () => _wrapNoteSelection('**', '**'),
+                            child: const Text('Bold', style: TextStyle(fontSize: 12.5)),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () => _wrapNoteSelection('*', '*'),
+                            child: const Text('Italic', style: TextStyle(fontSize: 12.5)),
+                          ),
+                          FilledButton.tonal(
+                            onPressed: () => _insertNoteText('\n- '),
+                            child: const Text('List', style: TextStyle(fontSize: 12.5)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _noteMarkdownController,
+                        decoration: const InputDecoration(
+                          hintText: 'Add a note (Markdown supported)',
+                          alignLabelWithHint: true,
+                        ),
+                        minLines: 3,
+                        maxLines: 6,
+                      ),
+                    ],
+                  ),
 
-            const Text('Sub-tasks', style: TextStyle(fontWeight: FontWeight.bold)),
-            ..._subTasks.map((st) => ListTile(
-              leading: Checkbox(value: st.isCompleted, onChanged: (v) => setState(() => st.isCompleted = v!)),
-              title: Text(st.title),
-              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _subTasks.remove(st))),
-            )),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _subTaskController, decoration: const InputDecoration(hintText: 'Add sub-task'))),
-                IconButton(icon: const Icon(Icons.add), onPressed: () {
-                  if (_subTaskController.text.isNotEmpty) {
-                    setState(() {
-                      _subTasks.add(SubTask(id: const Uuid().v4(), title: _subTaskController.text));
-                      _subTaskController.clear();
-                    });
-                  }
-                }),
-              ],
-            ),
-            const SizedBox(height: 24),
+                  // Attachments (compact row + list)
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 6),
+                    leading: const Icon(Icons.attach_file_rounded),
+                    title: Text('Attachments', style: theme.textTheme.titleSmall),
+                    children: [
+                      Row(
+                        children: [
+                          IconButton.filledTonal(
+                            tooltip: 'Photo',
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.image_outlined),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: 'File',
+                            onPressed: _pickFile,
+                            icon: const Icon(Icons.attach_file),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: _recordingVoice ? 'Stop' : 'Voice note',
+                            onPressed: _toggleVoice,
+                            icon: Icon(_recordingVoice ? Icons.stop : Icons.mic_none),
+                          ),
+                        ],
+                      ),
+                      Consumer<NotesProvider>(
+                        builder: (context, notes, _) {
+                          final list = notes.attachmentsForTask(_taskId);
+                          if (list.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                'No attachments',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            );
+                          }
+                          return Column(
+                            children: list
+                                .map((a) => _AttachmentTile(
+                                      attachment: a,
+                                      notes: notes,
+                                    ))
+                                .toList(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
 
-            const Text('Tags', style: TextStyle(fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8,
-              children: _tags.map((t) => Chip(label: Text(t), onDeleted: () => setState(() => _tags.remove(t)))).toList(),
-            ),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _tagController, decoration: const InputDecoration(hintText: 'Add tag'))),
-                IconButton(icon: const Icon(Icons.add), onPressed: () {
-                  if (_tagController.text.isNotEmpty) {
-                    setState(() {
-                      _tags.add(_tagController.text);
-                      _tagController.clear();
-                    });
-                  }
-                }),
-              ],
-            ),
-            const SizedBox(height: 24),
+                  // Tags (chips + add)
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 6),
+                    leading: const Icon(Icons.sell_outlined),
+                    title: Text('Tags', style: theme.textTheme.titleSmall),
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _tags
+                            .map(
+                              (t) => Chip(
+                                label: Text(t),
+                                onDeleted: () => setState(() => _tags.remove(t)),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _tagController,
+                              decoration: const InputDecoration(hintText: 'Add tag'),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_rounded),
+                            onPressed: () {
+                              final v = _tagController.text.trim();
+                              if (v.isEmpty) return;
+                              setState(() {
+                                _tags.add(v);
+                                _tagController.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
 
-            const Text('Dependencies', style: TextStyle(fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8,
-              children: taskProvider.tasks.where((t) => t.id != _taskId).map((t) => FilterChip(
-                label: Text(t.title),
-                selected: _dependencies.contains(t.id),
-                onSelected: (val) => setState(() => val ? _dependencies.add(t.id) : _dependencies.remove(t.id)),
-              )).toList(),
+                  // Subtasks (list + add)
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 6),
+                    leading: const Icon(Icons.checklist_rounded),
+                    title: Text('Sub-tasks', style: theme.textTheme.titleSmall),
+                    children: [
+                      ..._subTasks.map(
+                        (st) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Checkbox(
+                            value: st.isCompleted,
+                            onChanged: (v) => setState(() => st.isCompleted = v ?? false),
+                          ),
+                          title: Text(st.title),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => setState(() => _subTasks.remove(st)),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _subTaskController,
+                              decoration: const InputDecoration(hintText: 'Add sub-task'),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_rounded),
+                            onPressed: () {
+                              final v = _subTaskController.text.trim();
+                              if (v.isEmpty) return;
+                              setState(() {
+                                _subTasks.add(SubTask(id: const Uuid().v4(), title: v));
+                                _subTaskController.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  // Dependencies (kept but in advanced)
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 6),
+                    leading: const Icon(Icons.account_tree_outlined),
+                    title: Text('Dependencies', style: theme.textTheme.titleSmall),
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: taskProvider.tasks
+                            .where((t) => t.id != _taskId)
+                            .map(
+                              (t) => FilterChip(
+                                label: Text(t.title),
+                                selected: _dependencies.contains(t.id),
+                                onSelected: (val) => setState(() {
+                                  if (val) {
+                                    _dependencies.add(t.id);
+                                  } else {
+                                    _dependencies.remove(t.id);
+                                  }
+                                }),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+
+                  // Rare fields: expense, estimated time, repeat
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 6),
+                    leading: const Icon(Icons.tune_rounded),
+                    title: Text('Advanced', style: theme.textTheme.titleSmall),
+                    children: [
+                      TextFormField(
+                        controller: _expenseController,
+                        decoration: const InputDecoration(
+                          labelText: 'Expense (optional)',
+                          hintText: 'e.g. 45.00',
+                          prefixIcon: Icon(Icons.payments_outlined),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        initialValue: widget.task?.estimatedMinutes?.toString() ?? '',
+                        decoration: const InputDecoration(
+                          labelText: 'Estimated time (minutes)',
+                          prefixIcon: Icon(Icons.timer_outlined),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) => setState(() => widget.task?.estimatedMinutes = int.tryParse(val)),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<RecurringInterval>(
+                        value: _recurringInterval,
+                        decoration: const InputDecoration(labelText: 'Repeat'),
+                        items: RecurringInterval.values
+                            .map((i) => DropdownMenuItem(
+                                  value: i,
+                                  child: Text(i.name),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val == null) return;
+                          setState(() => _recurringInterval = val);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),

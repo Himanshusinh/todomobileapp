@@ -63,9 +63,6 @@ class _GoalsScreenState extends State<GoalsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final appBarBg = theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
-
     return Consumer<GoalsProvider>(
       builder: (context, goals, _) {
         _ensureBoard(goals);
@@ -75,36 +72,17 @@ class _GoalsScreenState extends State<GoalsScreen>
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Material(
-                  color: appBarBg,
-                  elevation: 0,
-                  child: SafeArea(
-                    top: false,
-                    bottom: false,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          height: 48,
-                          child: Center(
-                            child: Text(
-                              'Goals & Projects',
-                              style: theme.appBarTheme.titleTextStyle,
-                            ),
-                          ),
-                        ),
-                        TabBar(
-                          controller: _tabs,
-                          isScrollable: true,
-                          tabs: const [
-                            Tab(text: 'Goals'),
-                            Tab(text: 'Boards'),
-                            Tab(text: 'OKRs'),
-                            Tab(text: 'Vision & Bucket'),
-                          ],
-                        ),
-                      ],
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: TabBar(
+                    controller: _tabs,
+                    isScrollable: true,
+                    tabs: const [
+                      Tab(text: 'Goals'),
+                      Tab(text: 'Boards'),
+                      Tab(text: 'OKRs'),
+                      Tab(text: 'Vision & Bucket'),
+                    ],
                   ),
                 ),
                 Expanded(

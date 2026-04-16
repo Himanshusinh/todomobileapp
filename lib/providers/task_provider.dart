@@ -3,13 +3,19 @@ import 'package:hive/hive.dart';
 import 'package:todoapp/models/category.dart';
 import 'package:todoapp/models/sub_task.dart';
 import 'package:todoapp/models/task_item.dart';
+import 'package:todoapp/services/hive_user_boxes.dart';
 import 'package:uuid/uuid.dart';
 
 enum TaskFilter { all, today, week, upcoming, overdue, suggested }
 
 class TaskProvider extends ChangeNotifier {
-  final Box<TaskItem> _taskBox = Hive.box<TaskItem>('tasks');
-  final Box<Category> _categoryBox = Hive.box<Category>('categories');
+  TaskProvider({required String userId})
+      : _taskBox = Hive.box<TaskItem>(HiveUserBoxes.name('tasks', userId)),
+        _categoryBox =
+            Hive.box<Category>(HiveUserBoxes.name('categories', userId));
+
+  final Box<TaskItem> _taskBox;
+  final Box<Category> _categoryBox;
   final _uuid = const Uuid();
 
   String? _selectedCategoryId;
@@ -18,6 +24,9 @@ class TaskProvider extends ChangeNotifier {
   TaskFilter _selectedFilter = TaskFilter.all;
   TaskFilter get selectedFilter => _selectedFilter;
 
+  TaskPriority? _selectedPriority;
+  TaskPriority? get selectedPriority => _selectedPriority;
+
   void selectCategory(String? id) {
     _selectedCategoryId = id;
     notifyListeners();
@@ -25,6 +34,11 @@ class TaskProvider extends ChangeNotifier {
 
   void selectFilter(TaskFilter filter) {
     _selectedFilter = filter;
+    notifyListeners();
+  }
+
+  void selectPriority(TaskPriority? priority) {
+    _selectedPriority = priority;
     notifyListeners();
   }
 
@@ -39,6 +53,11 @@ class TaskProvider extends ChangeNotifier {
     // Apply Category Filter
     if (_selectedCategoryId != null) {
       list = list.where((t) => t.categoryId == _selectedCategoryId).toList();
+    }
+
+    // Apply Priority Filter
+    if (_selectedPriority != null) {
+      list = list.where((t) => t.priority == _selectedPriority).toList();
     }
 
     // Apply Smart Filter

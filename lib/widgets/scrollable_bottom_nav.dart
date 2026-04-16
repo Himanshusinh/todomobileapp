@@ -20,11 +20,13 @@ class ScrollableBottomNav extends StatefulWidget {
     required this.currentIndex,
     required this.onDestinationSelected,
     required this.destinations,
+    this.floating = false,
   });
 
   final int currentIndex;
   final ValueChanged<int> onDestinationSelected;
   final List<NavDestinationData> destinations;
+  final bool floating;
 
   @override
   State<ScrollableBottomNav> createState() => _ScrollableBottomNavState();
@@ -32,7 +34,7 @@ class ScrollableBottomNav extends StatefulWidget {
 
 class _ScrollableBottomNavState extends State<ScrollableBottomNav> {
   final ScrollController _scroll = ScrollController();
-  static const double _itemWidth = 86;
+  static const double _itemWidth = 78;
 
   @override
   void initState() {
@@ -77,13 +79,14 @@ class _ScrollableBottomNavState extends State<ScrollableBottomNav> {
     final isDark = theme.brightness == Brightness.dark;
     final selectedColor = cs.primary;
     final unselectedColor = cs.onSurfaceVariant;
+    final radius = widget.floating ? 28.0 : 18.0;
 
     return Material(
-      elevation: 12,
+      elevation: widget.floating ? 14 : 12,
       shadowColor: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
       color: Colors.transparent,
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.circular(radius),
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -99,21 +102,19 @@ class _ScrollableBottomNavState extends State<ScrollableBottomNav> {
                       cs.surfaceContainerLow,
                     ],
             ),
-            border: Border(
-              top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
-            ),
+            // No hard border; rely on elevation/shadow for separation.
           ),
           child: SafeArea(
             top: false,
             child: SizedBox(
-              height: 84,
+              height: widget.floating ? 70 : 74,
               child: ListView.builder(
                 controller: _scroll,
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 10,
+                  horizontal: 8,
+                  vertical: 8,
                 ),
                 itemCount: widget.destinations.length,
                 itemBuilder: (context, index) {
@@ -136,17 +137,12 @@ class _ScrollableBottomNavState extends State<ScrollableBottomNav> {
                           curve: Curves.easeOutCubic,
                           width: _itemWidth - 8,
                           padding: const EdgeInsets.symmetric(
-                            vertical: 6,
-                            horizontal: 4,
+                            vertical: 4,
+                            horizontal: 2,
                           ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: selected
-                                  ? selectedColor.withValues(alpha: 0.35)
-                                  : Colors.transparent,
-                              width: 1,
-                            ),
+                            border: null,
                             color: selected
                                 ? selectedColor.withValues(
                                     alpha: isDark ? 0.22 : 0.09,
@@ -166,6 +162,7 @@ class _ScrollableBottomNavState extends State<ScrollableBottomNav> {
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               AnimatedScale(
                                 scale: selected ? 1.04 : 1.0,
@@ -173,27 +170,32 @@ class _ScrollableBottomNavState extends State<ScrollableBottomNav> {
                                 curve: Curves.easeOutCubic,
                                 child: Icon(
                                   selected ? d.selectedIcon : d.icon,
-                                  size: 28,
+                                  size: 23.5,
                                   color: selected
                                       ? selectedColor
                                       : unselectedColor,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                d.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontWeight: selected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  fontSize: 11,
-                                  color: selected
-                                      ? selectedColor
-                                      : unselectedColor,
-                                  letterSpacing: 0.2,
+                              const SizedBox(height: 2),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    d.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      fontWeight: selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      fontSize: 9.75,
+                                      color: selected
+                                          ? selectedColor
+                                          : unselectedColor,
+                                      letterSpacing: 0.15,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],

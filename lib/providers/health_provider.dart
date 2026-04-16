@@ -10,28 +10,46 @@ import 'package:todoapp/models/sleep_entry.dart';
 import 'package:todoapp/models/water_day.dart';
 import 'package:todoapp/models/weight_entry.dart';
 import 'package:todoapp/models/workout_entry.dart';
+import 'package:todoapp/services/hive_user_boxes.dart';
 import 'package:uuid/uuid.dart';
 
 class HealthProvider extends ChangeNotifier {
-  final Box<Habit> _habitBox = Hive.box<Habit>('habits');
-  final Box<HabitLog> _habitLogBox = Hive.box<HabitLog>('habit_logs');
-  final Box<MoodEntry> _moodBox = Hive.box<MoodEntry>('moods');
-  final Box<SleepEntry> _sleepBox = Hive.box<SleepEntry>('sleep');
-  final Box<WorkoutEntry> _workoutBox = Hive.box<WorkoutEntry>('workouts');
-  final Box<MealPlanItem> _mealBox = Hive.box<MealPlanItem>('meals');
-  final Box<GroceryItem> _groceryBox = Hive.box<GroceryItem>('grocery');
-  final Box<WaterDay> _waterBox = Hive.box<WaterDay>('water_days');
-  final Box<WeightEntry> _weightBox = Hive.box<WeightEntry>('weights');
-  final Box<FitnessGoal> _fitnessGoalBox = Hive.box<FitnessGoal>('fitness_goals');
+  HealthProvider({required String userId})
+      : _habitBox = Hive.box<Habit>(HiveUserBoxes.name('habits', userId)),
+        _habitLogBox =
+            Hive.box<HabitLog>(HiveUserBoxes.name('habit_logs', userId)),
+        _moodBox = Hive.box<MoodEntry>(HiveUserBoxes.name('moods', userId)),
+        _sleepBox = Hive.box<SleepEntry>(HiveUserBoxes.name('sleep', userId)),
+        _workoutBox =
+            Hive.box<WorkoutEntry>(HiveUserBoxes.name('workouts', userId)),
+        _mealBox = Hive.box<MealPlanItem>(HiveUserBoxes.name('meals', userId)),
+        _groceryBox =
+            Hive.box<GroceryItem>(HiveUserBoxes.name('grocery', userId)),
+        _waterBox =
+            Hive.box<WaterDay>(HiveUserBoxes.name('water_days', userId)),
+        _weightBox =
+            Hive.box<WeightEntry>(HiveUserBoxes.name('weights', userId)),
+        _fitnessGoalBox = Hive.box<FitnessGoal>(
+          HiveUserBoxes.name('fitness_goals', userId),
+        ) {
+    _seedDefaultHabitsIfEmpty();
+  }
+
+  final Box<Habit> _habitBox;
+  final Box<HabitLog> _habitLogBox;
+  final Box<MoodEntry> _moodBox;
+  final Box<SleepEntry> _sleepBox;
+  final Box<WorkoutEntry> _workoutBox;
+  final Box<MealPlanItem> _mealBox;
+  final Box<GroceryItem> _groceryBox;
+  final Box<WaterDay> _waterBox;
+  final Box<WeightEntry> _weightBox;
+  final Box<FitnessGoal> _fitnessGoalBox;
 
   final _uuid = const Uuid();
 
   static const int defaultWaterGoalMl = 2000;
   static const int waterGlassMl = 250;
-
-  HealthProvider() {
-    _seedDefaultHabitsIfEmpty();
-  }
 
   void _seedDefaultHabitsIfEmpty() {
     if (_habitBox.isNotEmpty) return;

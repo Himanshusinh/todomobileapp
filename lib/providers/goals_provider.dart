@@ -8,21 +8,37 @@ import 'package:todoapp/models/okr_key_result.dart';
 import 'package:todoapp/models/okr_objective.dart';
 import 'package:todoapp/models/project_board.dart';
 import 'package:todoapp/models/vision_item.dart';
+import 'package:todoapp/services/hive_user_boxes.dart';
 import 'package:uuid/uuid.dart';
 
 class GoalsProvider extends ChangeNotifier {
-  final Box<GoalItem> _goals = Hive.box<GoalItem>('goal_items');
-  final Box<MilestoneItem> _milestones = Hive.box<MilestoneItem>('milestones');
-  final Box<ProjectBoard> _boards = Hive.box<ProjectBoard>('project_boards');
-  final Box<KanbanItem> _kanban = Hive.box<KanbanItem>('kanban_items');
-  final Box<VisionItem> _vision = Hive.box<VisionItem>('vision_items');
-  final Box<BucketItem> _bucket = Hive.box<BucketItem>('bucket_items');
-  final Box<OkrObjective> _okrObj = Hive.box<OkrObjective>('okr_objectives');
-  final Box<OkrKeyResult> _okrKr = Hive.box<OkrKeyResult>('okr_key_results');
+  final Box<GoalItem> _goals;
+  final Box<MilestoneItem> _milestones;
+  final Box<ProjectBoard> _boards;
+  final Box<KanbanItem> _kanban;
+  final Box<VisionItem> _vision;
+  final Box<BucketItem> _bucket;
+  final Box<OkrObjective> _okrObj;
+  final Box<OkrKeyResult> _okrKr;
 
   final _uuid = const Uuid();
 
-  GoalsProvider() {
+  GoalsProvider({required String userId})
+      : _goals = Hive.box<GoalItem>(HiveUserBoxes.name('goal_items', userId)),
+        _milestones =
+            Hive.box<MilestoneItem>(HiveUserBoxes.name('milestones', userId)),
+        _boards =
+            Hive.box<ProjectBoard>(HiveUserBoxes.name('project_boards', userId)),
+        _kanban =
+            Hive.box<KanbanItem>(HiveUserBoxes.name('kanban_items', userId)),
+        _vision =
+            Hive.box<VisionItem>(HiveUserBoxes.name('vision_items', userId)),
+        _bucket =
+            Hive.box<BucketItem>(HiveUserBoxes.name('bucket_items', userId)),
+        _okrObj =
+            Hive.box<OkrObjective>(HiveUserBoxes.name('okr_objectives', userId)),
+        _okrKr =
+            Hive.box<OkrKeyResult>(HiveUserBoxes.name('okr_key_results', userId)) {
     _ensureDefaultBoard();
   }
 
